@@ -1,0 +1,3 @@
+# LOBArena relies on JaxMARL-HFT and LOBS5 runtime dependencies.
+# Start from JaxMARL-HFT requirements and add extras here only when needed.
+-r ../JaxMARL-HFT/requirements.txt

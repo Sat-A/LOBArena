@@ -1,0 +1,13 @@
+{
+  "world_model": "historical",
+  "policy_mode": "random",
+  "fixed_action": 0,
+  "n_steps": 25,
+  "n_cond_msgs": 64,
+  "sample_top_n": 1,
+  "sample_index": 0,
+  "test_split": 1.0,
+  "seed": 42,
+  "start_date": "",
+  "end_date": ""
+}
