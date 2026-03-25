@@ -16,6 +16,7 @@ from LOBArena.evaluate.policy_adapter import (
     validate_policy_choice,
 )
 from LOBArena.evaluate.policy_handoff import load_policy_handoff
+from LOBArena.evaluate.single_node_guard import enforce_single_node_context
 from LOBArena.evaluate.world_model_selector import validate_world_model_choice
 from LOBArena.guardrails.order_validators import book_quotes_valid, sanitize_action_messages
 from LOBArena.metrics.computation import build_phase1_metrics
@@ -770,6 +771,7 @@ def run_batch_evaluation(args, eval_runner=None) -> int:
 
 def main() -> int:
     args = parse_args()
+    enforce_single_node_context(context_name="phase2 evaluation entrypoint", args=args)
     _configure_runtime(args)
     if _is_batch_mode(args):
         return run_batch_evaluation(args)

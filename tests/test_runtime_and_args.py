@@ -65,3 +65,10 @@ def test_runtime_metadata_captures_requested_device():
     assert md["cpu_safe"] is True
     assert md["thread_env"]["JAX_PLATFORM_NAME"] == "cpu"
 
+
+def test_pipeline_main_rejects_multi_node_env(monkeypatch):
+    args = _base_args()
+    monkeypatch.setenv("SLURM_NNODES", "2")
+    monkeypatch.setattr(pipeline, "parse_args", lambda: args)
+    with pytest.raises(RuntimeError, match="single-node execution only"):
+        pipeline.main()

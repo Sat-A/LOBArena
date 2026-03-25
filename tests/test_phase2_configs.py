@@ -20,3 +20,12 @@ def test_policy_handoff_schema_and_template_exist_and_parseable():
     assert schema_data.get("title") == "LOBArena Policy Checkpoint Handoff"
     assert template_data.get("schema_version") == "1.0"
     assert "policy" in template_data and "provenance" in template_data
+
+
+def test_phase2_alpha_contract_spec_exists_and_parseable():
+    base = Path(__file__).resolve().parents[1] / 'config' / 'evaluation_configs'
+    contract = base / 'phase2_alpha_contract.json'
+    assert contract.exists()
+    data = json.loads(contract.read_text())
+    assert data.get("contract_version") == "phase2-alpha/1.0"
+    assert "campaign_summary" in data and "handoff_generation" in data

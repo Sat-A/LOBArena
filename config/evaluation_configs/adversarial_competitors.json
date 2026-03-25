@@ -19,6 +19,26 @@
       "description": "Placeholder scripted/directional competitor (not yet implemented)",
       "policy_mode": "directional",
       "supported": false
+    },
+    "phase2_candidate_001": {
+      "policy_handoff": "/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/phase2_handoff_candidate_001.json",
+      "notes": "auto-generated from phase2 candidates"
+    },
+    "phase2_candidate_002": {
+      "policy_handoff": "/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/phase2_handoff_candidate_002.json",
+      "notes": "auto-generated from phase2 candidates"
+    },
+    "phase2_candidate_003": {
+      "policy_handoff": "/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/phase2_handoff_candidate_003.json",
+      "notes": "auto-generated from phase2 candidates"
+    },
+    "phase2_candidate_004": {
+      "policy_handoff": "/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/phase2_handoff_candidate_004.json",
+      "notes": "auto-generated from phase2 candidates"
+    },
+    "phase2_candidate_005": {
+      "policy_handoff": "/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/phase2_handoff_candidate_005.json",
+      "notes": "auto-generated from phase2 candidates"
     }
   }
 }

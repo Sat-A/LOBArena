@@ -1,0 +1,96 @@
+{
+  "phase": "phase2",
+  "task": "curate-adversaries-select",
+  "timestamp": "2026-03-25T00:00:00Z",
+  "description": "Top viable single-node-trained policy candidates mined from JaxMARL-HFT aggregate/summary artifacts",
+  "source": {
+    "aggregate_files": [
+      "/home/s5e/satyamaga.s5e/JaxMARL-HFT/outputs/gen_worldmodel_pg_train/train_best_aggregate_2895139.json",
+      "/home/s5e/satyamaga.s5e/JaxMARL-HFT/outputs/gen_worldmodel_pg_train/train_best_aggregate_2915160.json",
+      "/home/s5e/satyamaga.s5e/JaxMARL-HFT/outputs/gen_worldmodel_pg_train/single_node_sweep_aggregate_2894876.json"
+    ],
+    "ranking_heuristic": "max(final_avg_pnl) then max(mean_steps_per_sec)",
+    "notes": "All candidates tie on final_avg_pnl=0.0, so ordering is throughput-dominated."
+  },
+  "candidates": [
+    {
+      "candidate_id": "candidate_001",
+      "run_name": "train_best_seed45_job2895139",
+      "run_dir": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/outputs/gen_worldmodel_pg_train/train_best_seed45_job2895139",
+      "summary_path": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/outputs/gen_worldmodel_pg_train/train_best_seed45_job2895139/summary.json",
+      "checkpoint_dir": "/lus/lfs1aip2/projects/s5e/quant/AlphaTrade/experiments/exp_H1-scaling-law/checkpoints/j2514440_bkotgtm5_2514440",
+      "config_path": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/config/rl_configs/ippo_rnn_JAXMARL_2player_cluster_smoke.yaml",
+      "seed": 45,
+      "n_envs": 1,
+      "n_steps": 20,
+      "n_updates": 5,
+      "final_avg_pnl": 0.0,
+      "mean_steps_per_sec": 5.757246299807213,
+      "rationale": "Best throughput among all mined single-node train-best runs."
+    },
+    {
+      "candidate_id": "candidate_002",
+      "run_name": "train_best_seed42_job2895139",
+      "run_dir": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/outputs/gen_worldmodel_pg_train/train_best_seed42_job2895139",
+      "summary_path": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/outputs/gen_worldmodel_pg_train/train_best_seed42_job2895139/summary.json",
+      "checkpoint_dir": "/lus/lfs1aip2/projects/s5e/quant/AlphaTrade/experiments/exp_H1-scaling-law/checkpoints/j2514440_bkotgtm5_2514440",
+      "config_path": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/config/rl_configs/ippo_rnn_JAXMARL_2player_cluster_smoke.yaml",
+      "seed": 42,
+      "n_envs": 1,
+      "n_steps": 20,
+      "n_updates": 5,
+      "final_avg_pnl": 0.0,
+      "mean_steps_per_sec": 5.709309633751056,
+      "rationale": "Second-best throughput; same train-best regime as candidate_001 for seed diversity."
+    },
+    {
+      "candidate_id": "candidate_003",
+      "run_name": "train_best_seed43_job2895139",
+      "run_dir": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/outputs/gen_worldmodel_pg_train/train_best_seed43_job2895139",
+      "summary_path": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/outputs/gen_worldmodel_pg_train/train_best_seed43_job2895139/summary.json",
+      "checkpoint_dir": "/lus/lfs1aip2/projects/s5e/quant/AlphaTrade/experiments/exp_H1-scaling-law/checkpoints/j2514440_bkotgtm5_2514440",
+      "config_path": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/config/rl_configs/ippo_rnn_JAXMARL_2player_cluster_smoke.yaml",
+      "seed": 43,
+      "n_envs": 1,
+      "n_steps": 20,
+      "n_updates": 5,
+      "final_avg_pnl": 0.0,
+      "mean_steps_per_sec": 5.6721876217613785,
+      "rationale": "Third-ranked throughput in the strongest train-best job cohort."
+    },
+    {
+      "candidate_id": "candidate_004",
+      "run_name": "train_best_seed44_job2895139",
+      "run_dir": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/outputs/gen_worldmodel_pg_train/train_best_seed44_job2895139",
+      "summary_path": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/outputs/gen_worldmodel_pg_train/train_best_seed44_job2895139/summary.json",
+      "checkpoint_dir": "/lus/lfs1aip2/projects/s5e/quant/AlphaTrade/experiments/exp_H1-scaling-law/checkpoints/j2514440_bkotgtm5_2514440",
+      "config_path": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/config/rl_configs/ippo_rnn_JAXMARL_2player_cluster_smoke.yaml",
+      "seed": 44,
+      "n_envs": 1,
+      "n_steps": 20,
+      "n_updates": 5,
+      "final_avg_pnl": 0.0,
+      "mean_steps_per_sec": 5.559584624320128,
+      "rationale": "Fourth-ranked throughput; completes top seed sweep in job2895139."
+    },
+    {
+      "candidate_id": "candidate_005",
+      "run_name": "train_best_seed42_job2915160",
+      "run_dir": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/outputs/gen_worldmodel_pg_train/train_best_seed42_job2915160",
+      "summary_path": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/outputs/gen_worldmodel_pg_train/train_best_seed42_job2915160/summary.json",
+      "checkpoint_dir": "/lus/lfs1aip2/projects/s5e/quant/AlphaTrade/experiments/exp_H1-scaling-law/checkpoints/j2514440_bkotgtm5_2514440",
+      "config_path": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/config/rl_configs/ippo_rnn_JAXMARL_2player_cluster_smoke.yaml",
+      "seed": 42,
+      "n_envs": 2,
+      "n_steps": 10,
+      "n_updates": 10,
+      "final_avg_pnl": 0.0,
+      "mean_steps_per_sec": 3.701558820430339,
+      "rationale": "Best n_envs=2 train-best run; adds parallel-env robustness to the selected set."
+    }
+  ],
+  "blockers": [
+    "No run in mined aggregates has positive PnL (all final_avg_pnl = 0.0).",
+    "Trade incidence is zero or absent in summaries, so quality tie-break relied on throughput."
+  ]
+}

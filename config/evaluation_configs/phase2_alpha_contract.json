@@ -1,0 +1,63 @@
+{
+  "contract_name": "LOBArena Phase2 Train-Handoff-Eval Contract",
+  "contract_version": "phase2-alpha/1.0",
+  "status_values": ["success", "failed"],
+  "campaign_summary": {
+    "required_fields": [
+      "contract_version",
+      "run_name",
+      "status",
+      "train",
+      "evaluation",
+      "policy",
+      "artifacts",
+      "runtime_sec"
+    ],
+    "train": {
+      "required_fields": ["data_dir", "steps"]
+    },
+    "evaluation": {
+      "required_fields": ["data_dir", "steps", "eval_rc", "run_name"]
+    },
+    "policy": {
+      "required_fields": [
+        "mode",
+        "checkpoint_dir",
+        "config_path",
+        "input_handoff",
+        "generated_handoff"
+      ]
+    },
+    "artifacts": {
+      "required_fields": ["run_dir", "summary_path"]
+    }
+  },
+  "handoff_generation": {
+    "required_fields": [
+      "policy_mode",
+      "checkpoint_dir",
+      "config_path",
+      "model_index",
+      "restore_topology",
+      "evaluation",
+      "provenance",
+      "output_path"
+    ],
+    "policy_mode": {
+      "allowed_values": ["ippo_rnn"]
+    },
+    "restore_topology": {
+      "required_fields": ["restore_strategy", "train_device_count", "eval_device_count"],
+      "allowed_restore_strategy": ["direct", "single_device_fallback"]
+    },
+    "evaluation": {
+      "required_fields": ["seed", "start_date", "end_date"]
+    },
+    "provenance": {
+      "required_fields": ["run_id", "git_commit"]
+    },
+    "output": {
+      "produces_policy_handoff_schema_version": "1.0"
+    }
+  }
+}

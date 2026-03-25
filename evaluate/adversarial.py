@@ -9,6 +9,10 @@ import time
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+from LOBArena.evaluate.phase2_contract import validate_campaign_summary_payload
+from LOBArena.evaluate.policy_handoff import load_policy_handoff
+from LOBArena.evaluate.single_node_guard import enforce_single_node_context
+
 
 def parse_args():
     workspace_root = Path(__file__).resolve().parents[2]
@@ -62,12 +66,64 @@ def load_competitor_registry(registry_path: Path) -> Dict[str, dict]:
     return competitors
 
 
+def _resolve_policy_handoff_artifact_path(owner_name: str, handoff: str) -> str:
+    handoff_path = Path(handoff).expanduser().resolve()
+    if not handoff_path.exists():
+        raise FileNotFoundError(
+            f"{owner_name} handoff artifact not found: {handoff_path}. "
+            "Provide a valid policy_handoff artifact or a phase2 train/eval summary JSON."
+        )
+
+    handoff_err = None
+    try:
+        loaded = load_policy_handoff(handoff_path)
+        return loaded["_artifact_path"]
+    except Exception as exc:
+        handoff_err = exc
+
+    try:
+        payload = json.loads(handoff_path.read_text())
+    except json.JSONDecodeError as decode_err:
+        raise ValueError(
+            f"{owner_name} handoff artifact '{handoff_path}' is not valid JSON "
+            f"(cannot parse policy_handoff or campaign summary payload): {decode_err}"
+        ) from decode_err
+
+    try:
+        campaign = validate_campaign_summary_payload(payload, base_dir=handoff_path.parent)
+    except Exception as campaign_err:
+        raise ValueError(
+            f"{owner_name} handoff artifact '{handoff_path}' is invalid. "
+            "Expected either a policy_handoff artifact payload or a phase2 campaign summary payload. "
+            f"policy_handoff parse error: {handoff_err}; campaign summary parse error: {campaign_err}"
+        ) from campaign_err
+
+    policy_handoff = str(campaign.get("policy_handoff", "")).strip()
+    if not policy_handoff:
+        raise ValueError(
+            f"{owner_name} campaign summary '{handoff_path}' does not include a policy handoff path "
+            "(expected policy.input_handoff or policy.generated_handoff)."
+        )
+    policy_handoff_path = Path(policy_handoff).expanduser().resolve()
+    if not policy_handoff_path.exists():
+        raise FileNotFoundError(
+            f"{owner_name} campaign summary '{handoff_path}' references missing policy handoff artifact: "
+            f"{policy_handoff_path}"
+        )
+
+    loaded = load_policy_handoff(policy_handoff_path)
+    return loaded["_artifact_path"]
+
+
 def _validate_competitor_spec(name: str, spec: dict) -> None:
     handoff = str(spec.get("policy_handoff", "")).strip()
     if handoff:
-        handoff_path = Path(handoff).expanduser().resolve()
-        if not handoff_path.exists():
-            raise FileNotFoundError(f"Competitor '{name}' handoff artifact not found: {handoff_path}")
+        resolved_handoff = _resolve_policy_handoff_artifact_path(f"Competitor '{name}'", handoff)
+        loaded = load_policy_handoff(resolved_handoff)
+        spec["policy_handoff"] = loaded["_artifact_path"]
+        spec["policy_mode"] = loaded["policy"]["mode"]
+        spec["policy_ckpt_dir"] = loaded["policy"]["checkpoint_dir"]
+        spec["policy_config"] = loaded["policy"]["config_path"]
         return
 
     mode = str(spec.get("policy_mode", "")).strip().lower()
@@ -110,7 +166,7 @@ def _resolve_competitors(args) -> List[dict]:
             resolved.append(
                 {
                     "key": key,
-                    "policy_mode": str(spec["policy_mode"]).strip().lower(),
+                    "policy_mode": str(spec.get("policy_mode", "ippo_rnn")).strip().lower(),
                     "fixed_action": int(spec.get("fixed_action", 0)),
                     "policy_ckpt_dir": str(spec.get("policy_ckpt_dir", "")),
                     "policy_config": str(spec.get("policy_config", "")),
@@ -378,6 +434,7 @@ def _run_eval(
 
 def main():
     args = parse_args()
+    enforce_single_node_context(context_name="phase2 adversarial evaluation", args=args)
     t0 = time.time()
 
     out_root = Path(args.output_root).expanduser().resolve()

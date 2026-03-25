@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "policy": {
+    "mode": "ippo_rnn",
+    "checkpoint_dir": "/lus/lfs1aip2/projects/s5e/quant/AlphaTrade/experiments/exp_H1-scaling-law/checkpoints/j2514440_bkotgtm5_2514440",
+    "config_path": "/home/s5e/satyamaga.s5e/JaxMARL-HFT/config/rl_configs/ippo_rnn_JAXMARL_2player_cluster_smoke.yaml",
+    "model_index": 1
+  },
+  "restore_topology": {
+    "restore_strategy": "single_device_fallback",
+    "train_device_count": 1,
+    "eval_device_count": 1
+  },
+  "evaluation": {
+    "seed": 42,
+    "date_window": {
+      "start_date": "2026-01-01",
+      "end_date": "2026-01-31"
+    }
+  },
+  "provenance": {
+    "run_id": "train_best_seed44_job2895139",
+    "git_commit": ""
+  }
+}

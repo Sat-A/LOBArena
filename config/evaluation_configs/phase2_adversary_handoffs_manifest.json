@@ -1,0 +1,29 @@
+{
+  "fairness": {
+    "seed": 42,
+    "start_date": "2026-01-01",
+    "end_date": "2026-01-31"
+  },
+  "candidates": [
+    {
+      "name": "candidate_001_train_best_seed45_job2895139",
+      "policy_handoff": "/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/phase2_handoff_candidate_001.json"
+    },
+    {
+      "name": "candidate_002_train_best_seed42_job2895139",
+      "policy_handoff": "/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/phase2_handoff_candidate_002.json"
+    },
+    {
+      "name": "candidate_003_train_best_seed43_job2895139",
+      "policy_handoff": "/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/phase2_handoff_candidate_003.json"
+    },
+    {
+      "name": "candidate_004_train_best_seed44_job2895139",
+      "policy_handoff": "/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/phase2_handoff_candidate_004.json"
+    },
+    {
+      "name": "candidate_005_train_best_seed42_job2915160",
+      "policy_handoff": "/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/phase2_handoff_candidate_005.json"
+    }
+  ]
+}
