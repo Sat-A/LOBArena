@@ -1,84 +1,84 @@
 # LOBArena
 
-LOBArena is a sibling project to `JaxMARL-HFT` focused on checkpoint-based arena evaluation and comparison of trading agents.
+LOBArena is an evaluation harness for trading policies against limit-order-book world models.
 
-## Phase 1
+This README is public-facing and focused on quick setup and how to run tests/evaluations.
 
-- Unified evaluation pipeline with world model choice:
-  - `historical` replay
-  - `generative` (requires LOBS5 checkpoint)
-- Inputs: world model mode, trading policy mode/checkpoint, test dataset.
-- Matching engine: JAX-LOB stack from `JaxMARL-HFT`.
-- Guardrails: invalid-order sanitization and book-integrity rollback checks.
-- Metrics: PnL, drawdown, risk proxy, inventory stats, impact proxy.
-- Leaderboard: aggregate and rank runs by primary performance metrics.
+For architecture, runtime internals, execution matrices, and troubleshooting details, see [`TECHNICAL_DETAILS.md`](TECHNICAL_DETAILS.md).
 
-## Repository structure
+## Quick setup
 
-- `evaluate/` core execution logic (pipeline, world-model selection, policy adapter, checkpoint loading).
-- `guardrails/` message/order safety checks.
-- `metrics/` performance and risk metric computations.
-- `leaderboard/` run aggregation and ranking.
-- `scripts/` CLI entrypoints.
-- `config/evaluation_configs/` default run configuration templates.
-- `tests/` unit checks for guardrails and metrics.
-
-## Quick usage
+Use the `lobs5` conda environment (recommended for JAX/JaxMARL-HFT/LOBS5 compatibility), then install dependencies:
 
 ```bash
-python3 LOBArena/scripts/evaluate_checkpoint.py \
+pip install -r requirements.txt
+```
+
+## Basic evaluation run (Phase 1)
+
+```bash
+python3 scripts/evaluate_checkpoint.py \
   --world_model historical \
   --policy_mode random \
   --data_dir /path/to/test_data \
-  --run_name phase1_random_smoke
-
-python3 LOBArena/scripts/evaluate_checkpoint.py \
-  --world_model generative \
-  --policy_mode ippo_rnn \
-  --lobs5_ckpt_path /path/to/lobs5_ckpt \
-  --policy_ckpt_dir /path/to/marl_ckpt \
-  --policy_config /path/to/ippo_config.yaml \
-  --data_dir /path/to/test_data \
-  --run_name phase1_ippo_smoke
-
-python3 LOBArena/scripts/build_leaderboard.py \
-  --glob 'LOBArena/outputs/evaluations/*/summary.json' \
-  --output LOBArena/outputs/evaluations/leaderboard.json
+  --run_name phase1_smoke
 ```
 
-## Phase 2 workflows
+Artifacts are written to `outputs/evaluations/<run_name>/` (including `summary.json` and `step_trace.csv`).
+
+## Leaderboard build
 
 ```bash
-python3 LOBArena/scripts/train_eval_phase2.py \
-  --train_data_dir /path/to/train_data \
-  --test_data_dir /path/to/test_data \
-  --run_name phase2_train_eval
+python3 scripts/build_leaderboard.py \
+  --glob 'outputs/evaluations/*/summary.json' \
+  --output outputs/evaluations/leaderboard.json
+```
 
-python3 LOBArena/scripts/adversarial_eval_phase2.py \
-  --data_dir /path/to/test_data \
+## Smoke wrapper
+
+```bash
+python3 scripts/run_phase1_smoke.py --data_dir /path/to/test_data
+```
+
+## Phase 2 orchestration scripts
+
+```bash
+python3 scripts/train_eval_phase2.py \
+  --train_data_dir /path/to/train \
+  --test_data_dir /path/to/test \
+  --run_name phase2_train_eval
+```
+
+```bash
+python3 scripts/adversarial_eval_phase2.py \
+  --data_dir /path/to/test \
   --target_policy_mode random \
   --competitor_policy_mode fixed \
   --run_name phase2_adversarial
 ```
 
-## Runtime notes
+## Running tests
 
-- Generative mode requires `--lobs5_ckpt_path` (and optional `--checkpoint_step`).
-- `ippo_rnn` policy mode requires `--policy_ckpt_dir` and `--policy_config`.
-- On CPU-limited nodes, set strict thread caps before runs:
+Run full suite:
 
 ```bash
-export OMP_NUM_THREADS=1
-export MKL_NUM_THREADS=1
-export OPENBLAS_NUM_THREADS=1
-export NUMEXPR_NUM_THREADS=1
-export TF_NUM_INTRAOP_THREADS=1
-export TF_NUM_INTEROP_THREADS=1
-export JAX_NUM_THREADS=1
-export XLA_FLAGS='--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1'
+python -m pytest tests -v
 ```
 
-## Phase 2 (next)
+Run one test file:
 
-- Train-on-train / eval-on-test workflow.
-- Adversarial competitors (MM + directional agents) in arena evaluation.
+```bash
+python -m pytest tests/test_guardrails.py -v
+```
+
+Run one test:
+
+```bash
+python -m pytest tests/test_metrics.py::test_build_phase1_metrics_shapes -v
+```
+
+## Notes
+
+- `generative` world model requires `--lobs5_ckpt_path`.
+- `ippo_rnn` policy mode requires `--policy_ckpt_dir` and `--policy_config`.
+- If your host is CPU-constrained, see thread/JAX runtime settings in [`TECHNICAL_DETAILS.md`](TECHNICAL_DETAILS.md).
