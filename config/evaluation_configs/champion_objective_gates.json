@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0",
+  "name": "ippo_rnn_champion_objective_gates",
+  "description": "Champion selection objective/gates for IPPO-RNN using LOBArena test-set summaries.",
+  "selection_policy": {
+    "requires_all_hard_gates": true,
+    "primary_objective": {
+      "name": "risk_adjusted_pnl_score",
+      "metric_paths": {
+        "total_pnl": "metrics.pnl.total_pnl",
+        "max_drawdown": "metrics.drawdown.max_drawdown",
+        "pnl_delta_std": "metrics.risk.pnl_delta_std",
+        "mean_abs_inventory": "metrics.inventory.mean_abs_inventory"
+      },
+      "formula": "(1.0 * total_pnl - 0.50 * abs(max_drawdown) - 0.10 * mean_abs_inventory) / (1.0 + 1.0 * pnl_delta_std)",
+      "weights": {
+        "total_pnl": 1.0,
+        "drawdown_penalty": 0.5,
+        "inventory_penalty": 0.1,
+        "risk_denominator": 1.0
+      },
+      "minimum_acceptable_score": 0.0
+    },
+    "hard_gates": {
+      "trade_incidence_floor": {
+        "name": "trade_incidence_ratio",
+        "definition": "sum(action_histogram[k] for k != 0) / max(1, n_steps_executed)",
+        "minimum": 0.05
+      },
+      "drawdown_limit": {
+        "name": "max_drawdown_abs",
+        "metric_path": "metrics.drawdown.max_drawdown",
+        "maximum_abs": 2500.0
+      },
+      "inventory_risk_limit": {
+        "max_abs_inventory": {
+          "metric_path": "metrics.inventory.max_abs_inventory",
+          "maximum": 150.0
+        },
+        "mean_abs_inventory": {
+          "metric_path": "metrics.inventory.mean_abs_inventory",
+          "maximum": 40.0
+        },
+        "pnl_delta_std": {
+          "metric_path": "metrics.risk.pnl_delta_std",
+          "maximum": 75.0
+        }
+      },
+      "stability_across_seeds_windows": {
+        "min_seed_count": 3,
+        "min_window_count": 2,
+        "max_cv_risk_adjusted_pnl_score": 0.35,
+        "min_worst_seed_to_median_ratio": 0.7,
+        "min_pass_fraction": 0.67
+      }
+    },
+    "tie_breakers": {
+      "epsilon_on_primary_objective": 1e-06,
+      "ordered_rules": [
+        {
+          "metric": "metrics.pnl.total_pnl",
+          "direction": "desc"
+        },
+        {
+          "metric": "metrics.drawdown.max_drawdown",
+          "transform": "abs",
+          "direction": "asc"
+        },
+        {
+          "metric": "metrics.risk.pnl_delta_std",
+          "direction": "asc"
+        },
+        {
+          "metric": "trade_incidence_ratio",
+          "direction": "desc"
+        }
+      ],
+      "composite_if_still_tied": {
+        "formula": "0.50 * norm(total_pnl) + 0.20 * norm(trade_incidence_ratio) - 0.20 * norm(abs(max_drawdown)) - 0.10 * norm(pnl_delta_std)",
+        "weights": {
+          "total_pnl": 0.5,
+          "trade_incidence_ratio": 0.2,
+          "max_drawdown_abs": 0.2,
+          "pnl_delta_std": 0.1
+        }
+      }
+    }
+  }
+}

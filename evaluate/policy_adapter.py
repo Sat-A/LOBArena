@@ -13,8 +13,8 @@ class PolicySelection(object):
 
 def validate_policy_choice(mode, fixed_action, policy_ckpt_dir, policy_config):
     m = mode.strip().lower()
-    if m not in {"random", "fixed", "ippo_rnn"}:
-        raise ValueError(f"Invalid policy_mode: {mode}. Use random|fixed|ippo_rnn")
+    if m not in {"random", "fixed", "ippo_rnn", "lose_money"}:
+        raise ValueError(f"Invalid policy_mode: {mode}. Use random|fixed|ippo_rnn|lose_money")
 
     ckpt = Path(policy_ckpt_dir).expanduser().resolve() if policy_ckpt_dir else None
     cfg = Path(policy_config).expanduser().resolve() if policy_config else None
@@ -46,4 +46,22 @@ def load_ippo_policy_adapter(jaxmarl_root, checkpoint_dir, config_path, seed):
         checkpoint_step=None,
         deterministic=True,
         model_index=1,
+    )
+
+
+def load_ippo_policy_adapter_with_index(jaxmarl_root, checkpoint_dir, config_path, seed, model_index):
+    root = str(jaxmarl_root)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    from run_learned_mm_worldmodel_rollout import LearnedPolicyAdapter  # type: ignore
+
+    return LearnedPolicyAdapter(
+        checkpoint_dir=checkpoint_dir,
+        config_path=config_path,
+        obs_dim=12,
+        action_dim=5,
+        seed=int(seed),
+        checkpoint_step=None,
+        deterministic=True,
+        model_index=int(model_index),
     )

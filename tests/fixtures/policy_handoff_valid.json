@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "policy": {
+    "mode": "ippo_rnn",
+    "checkpoint_dir": ".",
+    "config_path": "../test_policy_handoff.py",
+    "model_index": 1
+  },
+  "restore_topology": {
+    "restore_strategy": "single_device_fallback",
+    "train_device_count": 4,
+    "eval_device_count": 1
+  },
+  "evaluation": {
+    "seed": 123,
+    "date_window": {
+      "start_date": "2024-01-02",
+      "end_date": "2024-01-05"
+    }
+  },
+  "provenance": {
+    "run_id": "unit-test-run",
+    "git_commit": ""
+  }
+}

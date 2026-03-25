@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "policy": {
+    "mode": "ippo_rnn",
+    "checkpoint_dir": "/path/to/jaxmarl/output/checkpoints",
+    "config_path": "/path/to/jaxmarl/configs/ippo_rnn.yaml",
+    "model_index": 1
+  },
+  "restore_topology": {
+    "restore_strategy": "single_device_fallback",
+    "train_device_count": 8,
+    "eval_device_count": 1
+  },
+  "evaluation": {
+    "seed": 42,
+    "date_window": {
+      "start_date": "2024-01-02",
+      "end_date": "2024-01-12"
+    }
+  },
+  "provenance": {
+    "run_id": "campaign_stage2_seed42_windowA",
+    "git_commit": ""
+  }
+}

@@ -8,15 +8,17 @@ from pathlib import Path
 
 
 def parse_args():
+    workspace_root = Path(__file__).resolve().parents[2]
     p = argparse.ArgumentParser(description="LOBArena Phase 2 train/eval orchestrator")
     p.add_argument("--train_data_dir", required=True)
     p.add_argument("--test_data_dir", required=True)
-    p.add_argument("--jaxmarl_root", default="/home/s5e/satyamaga.s5e/JaxMARL-HFT")
-    p.add_argument("--output_root", default="/home/s5e/satyamaga.s5e/LOBArena/outputs/evaluations")
+    p.add_argument("--jaxmarl_root", default=str(workspace_root / "JaxMARL-HFT"))
+    p.add_argument("--output_root", default=str(workspace_root / "LOBArena" / "outputs" / "evaluations"))
     p.add_argument("--train_steps", type=int, default=10)
     p.add_argument("--eval_steps", type=int, default=10)
     p.add_argument("--policy_ckpt_dir", default="")
     p.add_argument("--policy_config", default="")
+    p.add_argument("--policy_handoff", default="")
     p.add_argument("--run_name", default="phase2_train_eval")
     p.add_argument("--fast_startup", action="store_true")
     return p.parse_args()
@@ -37,7 +39,7 @@ def main():
     # Phase2 training integration path:
     # If checkpoint+config provided, treat as pre-trained policy handoff;
     # otherwise use random policy baseline as a training placeholder for workflow wiring.
-    policy_mode = "ippo_rnn" if args.policy_ckpt_dir and args.policy_config else "random"
+    policy_mode = "ippo_rnn" if args.policy_handoff or (args.policy_ckpt_dir and args.policy_config) else "random"
 
     eval_script = str(Path(__file__).resolve().parents[1] / "scripts" / "evaluate_checkpoint.py")
 
@@ -50,7 +52,9 @@ def main():
         "--n_steps", str(args.eval_steps),
         "--run_name", f"{args.run_name}_test_eval",
     ]
-    if policy_mode == "ippo_rnn":
+    if args.policy_handoff:
+        cmd += ["--policy_handoff", args.policy_handoff]
+    elif policy_mode == "ippo_rnn":
         cmd += ["--policy_ckpt_dir", args.policy_ckpt_dir, "--policy_config", args.policy_config]
     if args.fast_startup:
         cmd += ["--fast_startup"]
@@ -63,6 +67,7 @@ def main():
         "policy_mode": policy_mode,
         "policy_ckpt_dir": args.policy_ckpt_dir,
         "policy_config": args.policy_config,
+        "policy_handoff": args.policy_handoff,
         "train_steps": int(args.train_steps),
         "eval_steps": int(args.eval_steps),
         "eval_rc": int(rc),

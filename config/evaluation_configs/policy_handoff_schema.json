@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/s5e/LOBArena/policy-handoff.schema.json",
+  "title": "LOBArena Policy Checkpoint Handoff",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "policy",
+    "restore_topology",
+    "evaluation",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "checkpoint_dir", "config_path", "model_index"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["ippo_rnn", "random", "fixed", "lose_money"]
+        },
+        "checkpoint_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "config_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_index": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "restore_topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["restore_strategy", "train_device_count", "eval_device_count"],
+      "properties": {
+        "restore_strategy": {
+          "type": "string",
+          "enum": ["direct", "single_device_fallback"]
+        },
+        "train_device_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "eval_device_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seed", "date_window"],
+      "properties": {
+        "seed": {
+          "type": "integer"
+        },
+        "date_window": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start_date", "end_date"],
+          "properties": {
+            "start_date": {
+              "type": "string"
+            },
+            "end_date": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id"],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "git_commit": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

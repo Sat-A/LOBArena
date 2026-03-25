@@ -1,0 +1,24 @@
+{
+  "competitors": {
+    "random_baseline": {
+      "description": "Uniform random action baseline",
+      "policy_mode": "random"
+    },
+    "fixed_baseline_hold": {
+      "description": "Fixed hold/no-op baseline",
+      "policy_mode": "fixed",
+      "fixed_action": 0
+    },
+    "ippo_rnn_placeholder": {
+      "description": "Placeholder learned IPPO policy; set real checkpoint/config before use",
+      "policy_mode": "ippo_rnn",
+      "policy_ckpt_dir": "/path/to/ippo/checkpoint_dir",
+      "policy_config": "/path/to/ippo/config.yaml"
+    },
+    "scripted_directional_placeholder": {
+      "description": "Placeholder scripted/directional competitor (not yet implemented)",
+      "policy_mode": "directional",
+      "supported": false
+    }
+  }
+}

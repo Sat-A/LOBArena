@@ -51,8 +51,14 @@ def restore_params_with_cpu_fallback(ckpt_path, step):
     checkpointer = ocp.PyTreeCheckpointer()
     try:
         restored = checkpointer.restore(str(state_dir))
-    except Exception:
-        meta_tree = checkpointer.metadata(str(state_dir)).tree
+    except Exception as direct_err:
+        try:
+            meta_tree = checkpointer.metadata(str(state_dir)).tree
+        except Exception as meta_err:
+            raise RuntimeError(
+                f"Checkpoint restore failed for {state_dir}. "
+                f"Direct restore error: {direct_err}. Metadata load error: {meta_err}."
+            ) from meta_err
         single = jax.sharding.SingleDeviceSharding(jax.devices()[0])
 
         def _to_struct(x):
@@ -69,10 +75,16 @@ def restore_params_with_cpu_fallback(ckpt_path, step):
 
         target = jax.tree_util.tree_map(_to_struct, meta_tree)
         restore_args = jax.tree_util.tree_map(_to_restore_arg, target)
-        restored = checkpointer.restore(
-            str(state_dir),
-            args=ocp.args.PyTreeRestore(item=target, restore_args=restore_args),
-        )
+        try:
+            restored = checkpointer.restore(
+                str(state_dir),
+                args=ocp.args.PyTreeRestore(item=target, restore_args=restore_args),
+            )
+        except Exception as fallback_err:
+            raise RuntimeError(
+                f"Checkpoint restore failed for {state_dir} with CPU fallback. "
+                f"Direct restore error: {direct_err}. Fallback restore error: {fallback_err}."
+            ) from fallback_err
     if not isinstance(restored, dict) or "params" not in restored:
         raise RuntimeError(f"Unexpected checkpoint state format in {state_dir}")
     return restored["params"]
