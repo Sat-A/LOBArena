@@ -251,3 +251,20 @@ XLA_FLAGS='--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1'
   - `outputs/evaluations/phase2_profit_fixed4_cpu_hist/summary.json`
   - Provenance command: `outputs/evaluations/phase2_profit_fixed4_cpu_hist/provenance_command.txt`
   - Outcome: positive PnL not achieved in this environment (total_pnl remained 0.0).
+
+## Trained-checkpoint pipeline timing (current measured baseline)
+
+Timing was computed from trained-checkpoint summaries in:
+`JaxMARL-HFT/outputs/gen_worldmodel_pg_train/*/summary.json`
+using `timing_breakdown.total_runtime_sec`.
+
+- Sample size: `37` runs
+- Average end-to-end runtime: `286.922s` (~4m47s)
+- Median runtime: `276.007s` (~4m36s)
+- Min/Max runtime: `259.689s` / `393.247s`
+
+Recent trained/aggressive subset (`train_best_*` + `aggr_profit_*`) average runtime:
+- `306.175s` (~5m06s)
+
+Latest aggressive run:
+- `aggr_profit_tiny_cpu`: `307.073s`, with non-zero trade incidence but negative average PnL.
