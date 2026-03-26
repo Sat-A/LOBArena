@@ -56,12 +56,17 @@ def validate_policy_handoff_payload(payload, base_dir: Path):
     if model_index < 0:
         raise ValueError("policy.model_index must be >= 0")
 
-    checkpoint_dir = _resolve_path(policy.get("checkpoint_dir"), base_dir)
-    config_path = _resolve_path(policy.get("config_path"), base_dir)
-    if not checkpoint_dir.exists() or not checkpoint_dir.is_dir():
-        raise FileNotFoundError(f"Policy checkpoint dir not found: {checkpoint_dir}")
-    if not config_path.exists() or not config_path.is_file():
-        raise FileNotFoundError(f"Policy config file not found: {config_path}")
+    checkpoint_raw = str(policy.get("checkpoint_dir", "")).strip()
+    config_raw = str(policy.get("config_path", "")).strip()
+    checkpoint_dir = _resolve_path(checkpoint_raw, base_dir) if checkpoint_raw else Path()
+    config_path = _resolve_path(config_raw, base_dir) if config_raw else Path()
+    if mode == "ippo_rnn":
+        if not checkpoint_raw or not config_raw:
+            raise ValueError("policy.checkpoint_dir and policy.config_path are required for ippo_rnn")
+        if not checkpoint_dir.exists() or not checkpoint_dir.is_dir():
+            raise FileNotFoundError(f"Policy checkpoint dir not found: {checkpoint_dir}")
+        if not config_path.exists() or not config_path.is_file():
+            raise FileNotFoundError(f"Policy config file not found: {config_path}")
 
     topology = _require_dict("restore_topology", root.get("restore_topology"))
     _ensure_exact_keys("restore_topology", topology, _ALLOWED_TOPOLOGY)
@@ -98,8 +103,8 @@ def validate_policy_handoff_payload(payload, base_dir: Path):
         "schema_version": "1.0",
         "policy": {
             "mode": mode,
-            "checkpoint_dir": str(checkpoint_dir),
-            "config_path": str(config_path),
+            "checkpoint_dir": str(checkpoint_dir) if checkpoint_raw else "",
+            "config_path": str(config_path) if config_raw else "",
             "model_index": model_index,
         },
         "restore_topology": {

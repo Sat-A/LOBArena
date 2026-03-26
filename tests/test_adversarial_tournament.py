@@ -245,6 +245,7 @@ def test_main_round_robin_summary_contains_matches_and_aggregate(monkeypatch):
         assert by_participant["target"]["wins"] == 2
         assert by_participant["target"]["losses"] == 0
         assert data["win_rate_overall"] == 1.0
+        assert data["winner"] == "target"
         target_pairwise = data["aggregate"]["target_pairwise"]
         assert target_pairwise["win_rate_overall"] == 1.0
         assert target_pairwise["per_competitor"]["competitor:fixed_baseline_hold"]["avg_pnl_delta"] == 2.0
@@ -399,5 +400,78 @@ def test_adversarial_summary_schema_sanity_round_robin(monkeypatch):
         aggregate = data["aggregate"]
         assert set(aggregate.keys()) == {"by_participant", "target_pairwise", "regime_date_robustness"}
         assert set(aggregate["target_pairwise"]["pnl_delta_stats"].keys()) == {"mean", "median", "std", "min", "max"}
+    finally:
+        shutil.rmtree(output_root, ignore_errors=True)
+
+
+def test_adversarial_winner_is_tie_when_target_equals_competitor(monkeypatch):
+    test_root = Path("/home/s5e/satyamaga.s5e/LOBArena/tests/.adversarial_test_outputs")
+    run_name = f"tie_{uuid.uuid4().hex[:8]}"
+    output_root = test_root / run_name
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    args = SimpleNamespace(
+        data_dir="/home/s5e/satyamaga.s5e/LOBArena",
+        target_policy_mode="fixed",
+        target_fixed_action=1,
+        target_policy_ckpt="",
+        target_policy_config="",
+        target_policy_handoff="",
+        competitor_policy_mode="fixed",
+        competitor_fixed_action=1,
+        competitor_policy_ckpt="",
+        competitor_policy_config="",
+        competitor_policy_handoff="",
+        competitor_registry_config="/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/adversarial_competitors.json",
+        competitor_keys=[],
+        output_root=str(output_root),
+        run_name="adversarial_tie",
+        n_steps=3,
+        seed=3,
+        sample_index=0,
+        test_split=1.0,
+        start_date="",
+        end_date="",
+        round_robin=False,
+    )
+
+    def _fake_parse_args():
+        return args
+
+    def _fake_run_eval(
+        run_name,
+        output_root,
+        data_dir,
+        policy_mode,
+        fixed_action,
+        ckpt,
+        cfg,
+        n_steps,
+        seed,
+        sample_index,
+        test_split,
+        start_date,
+        end_date,
+        policy_handoff="",
+    ):
+        run_dir = Path(output_root) / run_name
+        run_dir.mkdir(parents=True, exist_ok=True)
+        summary = {
+            "world_model_mode": "historical",
+            "metrics": {"pnl": {"total_pnl": 5.0}},
+        }
+        (run_dir / "summary.json").write_text(json.dumps(summary))
+        return 0
+
+    monkeypatch.setattr(adversarial, "parse_args", _fake_parse_args)
+    monkeypatch.setattr(adversarial, "_run_eval", _fake_run_eval)
+
+    try:
+        rc = adversarial.main()
+        assert rc == 0
+        out = output_root / "adversarial_tie" / "adversarial_summary.json"
+        data = json.loads(out.read_text())
+        assert data["winner"] == "tie"
+        assert data["competitors"][0]["winner"] == "tie"
     finally:
         shutil.rmtree(output_root, ignore_errors=True)

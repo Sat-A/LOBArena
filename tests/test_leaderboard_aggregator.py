@@ -168,3 +168,26 @@ def test_split_leaderboard_counts_and_best_run_sanity(tmp_path):
     assert by_world["historical"]["leaderboard"][1]["rank"] == 2
     assert by_world["generative"]["n_runs"] == 1
     assert by_world["generative"]["best_run"]["run_name"] == "gen_a"
+
+
+def test_aggregate_skips_malformed_summary_files(tmp_path):
+    _write_summary(
+        tmp_path / "ok" / "summary.json",
+        {
+            "run_name": "ok_run",
+            "world_model_mode": "historical",
+            "policy_mode": "random",
+            "metrics": {
+                "pnl": {"total_pnl": 1.0, "cash_pnl": 1.0, "inventory": 0.0},
+                "drawdown": {"max_drawdown": -0.1},
+                "risk": {"pnl_delta_std": 0.1},
+            },
+        },
+    )
+    bad = tmp_path / "bad" / "summary.json"
+    bad.parent.mkdir(parents=True, exist_ok=True)
+    bad.write_text("{not-json")
+
+    result = aggregate(str(tmp_path / "*" / "summary.json"))
+    assert result["n_runs"] == 1
+    assert result["leaderboard"][0]["run_name"] == "ok_run"

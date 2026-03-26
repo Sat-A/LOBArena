@@ -81,6 +81,14 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Fail run on generative world-model inference error instead of falling back to historical replay.",
     )
+    p.add_argument(
+        "--allow_generative_fallback",
+        action="store_true",
+        help=(
+            "Allow fallback to historical replay when generative inference fails. "
+            "By default, generative runs fail fast on generation errors."
+        ),
+    )
     p.add_argument("--fast_startup", action="store_true")
     return p.parse_args()
 
@@ -260,7 +268,12 @@ def _load_policy_handoff_manifest(path: str):
     return payload, candidates_raw, fairness, p.parent
 
 
-def _normalize_batch_candidate(candidate_raw, idx: int, base_dir: Path) -> BatchCandidate:
+def _normalize_batch_candidate(
+    candidate_raw,
+    idx: int,
+    base_dir: Path,
+    trusted_base_dir: Path | None = None,
+) -> BatchCandidate:
     if isinstance(candidate_raw, str):
         candidate_id = f"candidate_{idx + 1:03d}"
         raw_path = candidate_raw
@@ -278,10 +291,20 @@ def _normalize_batch_candidate(candidate_raw, idx: int, base_dir: Path) -> Batch
         raise ValueError(f"Batch candidate {idx} must be string path or object")
 
     handoff_path = Path(str(raw_path)).expanduser()
+    raw_is_absolute = handoff_path.is_absolute()
     if not handoff_path.is_absolute():
         handoff_path = (base_dir / handoff_path).resolve()
     else:
         handoff_path = handoff_path.resolve()
+    if trusted_base_dir is not None and not raw_is_absolute:
+        trusted_root = trusted_base_dir.resolve()
+        try:
+            handoff_path.relative_to(trusted_root)
+        except ValueError as e:
+            raise ValueError(
+                f"Batch candidate {idx} path escapes manifest directory: {handoff_path}. "
+                f"Expected under: {trusted_root}"
+            ) from e
     return BatchCandidate(candidate_id=candidate_id, policy_handoff_path=str(handoff_path))
 
 
@@ -297,7 +320,7 @@ def resolve_batch_candidates(args: argparse.Namespace):
     if args.policy_handoff_manifest:
         _manifest, candidates_raw, fairness, base_dir = _load_policy_handoff_manifest(args.policy_handoff_manifest)
         for i, raw in enumerate(candidates_raw):
-            candidates.append(_normalize_batch_candidate(raw, i, base_dir))
+            candidates.append(_normalize_batch_candidate(raw, i, base_dir, trusted_base_dir=base_dir))
         fairness_overrides = {
             "seed": fairness.get("seed"),
             "start_date": fairness.get("start_date"),
@@ -348,6 +371,10 @@ def _run_single_evaluation(args) -> dict:
 
     wm_sel = validate_world_model_choice(args.world_model, args.lobs5_ckpt_path or None)
     pol_sel = validate_policy_choice(args.policy_mode, args.fixed_action, args.policy_ckpt_dir or None, args.policy_config or None)
+    strict_generation = bool(
+        args.strict_generative
+        or (wm_sel.mode == "generative" and not bool(getattr(args, "allow_generative_fallback", False)))
+    )
 
     tools = load_world_model_from_jaxmarl(jaxmarl_root, lobs5_root)
 
@@ -561,10 +588,10 @@ def _run_single_evaluation(args) -> dict:
             except Exception as e:
                 generation_fallback_count += 1
                 generation_error_last = repr(e)
-                if args.strict_generative:
+                if strict_generation:
                     raise RuntimeError(
                         f"Generative inference failed at step={step_i}: {e}. "
-                        "Disable --strict_generative to allow historical fallback."
+                        "Use --allow_generative_fallback to permit historical replay fallback."
                     ) from e
                 hist_idx = args.n_cond_msgs + step_i
                 if hist_idx >= int(m_seq_raw_all.shape[0]):
@@ -666,7 +693,8 @@ def _run_single_evaluation(args) -> dict:
         "n_steps_executed": int(len(step_rows)),
         "runtime": _runtime_metadata(args, selected_data_dir, jax_backend, jax_devices),
         "generation": {
-            "strict_mode": bool(args.strict_generative),
+            "strict_mode": bool(strict_generation),
+            "fallback_allowed": bool(not strict_generation),
             "fallback_used": bool(generation_fallback_count > 0),
             "fallback_count": int(generation_fallback_count),
             "last_error": generation_error_last,

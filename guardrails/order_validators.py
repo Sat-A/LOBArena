@@ -20,4 +20,4 @@ def sanitize_action_messages(msgs: jnp.ndarray) -> jnp.ndarray:
 
 
 def book_quotes_valid(best_bid: int, best_ask: int) -> bool:
-    return best_bid > 0 and best_ask > 0
+    return best_bid > 0 and best_ask > 0 and best_bid < best_ask

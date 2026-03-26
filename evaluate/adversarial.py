@@ -571,11 +571,7 @@ def main():
                 "competitor_rc": int(rc_comp),
                 "competitor_summary_path": str(comp_summary_path),
                 "competitor_total_pnl": pnl_comp,
-                "winner": (
-                    "target"
-                    if pnl_target is not None and pnl_comp is not None and pnl_target >= pnl_comp
-                    else "competitor"
-                ),
+                "winner": _winner_from_pnl(pnl_target, pnl_comp),
             }
         )
 
@@ -620,6 +616,11 @@ def main():
     target_pairwise = _compute_target_pairwise_summary(matches, target_id="target")
     regime_date_robustness = _compute_regime_date_robustness(matches, target_id="target")
     first_comp = comp_results[0]
+    first_comp_winner = first_comp["winner"]
+    if first_comp_winner == "left":
+        first_comp_winner = "target"
+    elif first_comp_winner == "right":
+        first_comp_winner = "competitor"
 
     result = {
         "run_name": args.run_name,
@@ -638,7 +639,7 @@ def main():
         "competitor_rc": first_comp["competitor_rc"],
         "target_total_pnl": pnl_target,
         "competitor_total_pnl": first_comp["competitor_total_pnl"],
-        "winner": first_comp["winner"],
+        "winner": first_comp_winner,
         "target_summary_path": str(target_summary),
         "competitors": comp_results,
         "participants": participant_specs,

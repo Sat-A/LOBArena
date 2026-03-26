@@ -178,8 +178,13 @@ def _build_split(groups: Dict[str, List[Dict[str, Any]]], weights: Dict[str, flo
 def _collect_rows(pattern: str) -> List[Dict[str, Any]]:
     files = sorted(glob.glob(pattern))
     rows = []
+    skipped = 0
     for f in files:
-        data = json.loads(Path(f).read_text())
+        try:
+            data = json.loads(Path(f).read_text())
+        except (OSError, json.JSONDecodeError):
+            skipped += 1
+            continue
         metrics = data.get("metrics", {})
         pnl = metrics.get("pnl", {})
         drawdown = metrics.get("drawdown", {})
@@ -203,6 +208,8 @@ def _collect_rows(pattern: str) -> List[Dict[str, Any]]:
                 "risk_std": _as_float(risk.get("pnl_delta_std", 0.0)),
             }
         )
+    if skipped:
+        print(f"Skipped {skipped} unreadable/malformed summary file(s).")
     return rows
 
 

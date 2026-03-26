@@ -50,6 +50,7 @@ def _base_args(output_root: Path, run_name: str = 'batch_eval'):
         cpu_safe=False,
         device='auto',
         strict_generative=False,
+        allow_generative_fallback=False,
     )
 
 
@@ -231,3 +232,24 @@ def test_batch_fairness_cli_overrides_manifest(test_output_root):
     rc = pipeline.run_batch_evaluation(args, eval_runner=_fake_eval_runner)
     assert rc == 0
     assert seen == [{'seed': 123, 'start_date': '2024-05-01', 'end_date': '2024-05-04'}]
+
+
+def test_manifest_rejects_relative_path_escape(test_output_root):
+    fixture = Path(__file__).resolve().parent / 'fixtures' / 'policy_handoff_valid.json'
+    outside_path = fixture.parent.parent / 'test_policy_handoff.py'
+    manifest_path = test_output_root / 'manifest_escape.json'
+    manifest_path.write_text(
+        json.dumps(
+            {
+                'candidates': [
+                    {'name': 'bad', 'policy_handoff': str(Path('..') / outside_path.name)},
+                ],
+            }
+        )
+    )
+
+    args = _base_args(test_output_root)
+    args.policy_handoff_manifest = str(manifest_path)
+
+    with pytest.raises(ValueError, match='escapes manifest directory'):
+        pipeline.resolve_batch_candidates(args)

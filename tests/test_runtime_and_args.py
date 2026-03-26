@@ -38,6 +38,7 @@ def _base_args():
         cpu_safe=False,
         device="auto",
         strict_generative=False,
+        allow_generative_fallback=False,
     )
 
 
