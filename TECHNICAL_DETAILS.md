@@ -1,83 +1,112 @@
 # LOBArena Technical Details
 
-This document describes architecture, runtime behavior, and production operations.
+This document covers runtime behavior, contracts, and production operations.
 
 ## Repository map
 
 - `evaluate/`
   - `pipeline.py`: single-run and batch evaluation orchestration
-  - `policy_handoff.py`: handoff schema validation/normalization
+  - `policy_handoff.py`: handoff schema validation and normalization
   - `policy_adapter.py`: trained policy adapter loading
-  - `checkpoint_loader.py`: model checkpoint restore with CPU fallback
+  - `checkpoint_loader.py`: checkpoint restore with CPU fallback behavior
   - `adversarial.py`: tournament/adversarial runner
   - `train_eval.py`: train-then-evaluate orchestration wrapper
   - `phase2_contract.py`: train/eval campaign contract validation
-  - `single_node_guard.py`: single-node enforcement for cluster safety
+  - `single_node_guard.py`: single-node execution enforcement
 - `leaderboard/`
-  - `aggregator.py`: ranking, split leaderboards, CSV export
+  - `aggregator.py`: weighted ranking and CSV export
 - `guardrails/`
   - `order_validators.py`: action sanitization and quote validity guards
 - `metrics/`
-  - `computation.py`: PnL, drawdown, risk, inventory, and impact metrics
+  - `computation.py`: PnL, drawdown, risk, inventory, impact metrics
 - `scripts/`
   - `evaluate_checkpoint.py`, `build_leaderboard.py`, `adversarial_eval_phase2.py`, `train_eval_phase2.py`, `run_phase1_smoke.py`
-- `config/evaluation_configs/`
-  - defaults, handoff schema/template, objective gates, competitor registry
-- `tests/`
-  - policy handoff, batch, leaderboard, adversarial, metrics, guardrails, runtime/args, checkpoint loader, smoke-path tests
 
-## Runtime behavior
+## Command reference
+
+### Evaluate own trained checkpoint
+
+```bash
+python3 scripts/evaluate_checkpoint.py \
+  --world_model historical \
+  --policy_mode ippo_rnn \
+  --policy_ckpt_dir /path/to/your/checkpoint_dir \
+  --policy_config /path/to/your/config.yaml \
+  --data_dir /path/to/test_data \
+  --run_name my_checkpoint_eval
+```
+
+### Evaluate fixed policy
+
+```bash
+python3 scripts/evaluate_checkpoint.py \
+  --world_model historical \
+  --policy_mode fixed \
+  --fixed_action 0 \
+  --data_dir /path/to/test_data \
+  --run_name fixed_policy_eval
+```
+
+### Evaluate random policy
+
+```bash
+python3 scripts/evaluate_checkpoint.py \
+  --world_model historical \
+  --policy_mode random \
+  --data_dir /path/to/test_data \
+  --run_name random_policy_eval
+```
+
+### Evaluate generative world model with trained policy
+
+```bash
+python3 scripts/evaluate_checkpoint.py \
+  --world_model generative \
+  --lobs5_ckpt_path /path/to/lobs5_ckpt \
+  --policy_mode ippo_rnn \
+  --policy_ckpt_dir /path/to/your/checkpoint_dir \
+  --policy_config /path/to/your/config.yaml \
+  --data_dir /path/to/test_data \
+  --run_name generative_checkpoint_eval
+```
+
+### Batch evaluate multiple policies
+
+```bash
+python3 scripts/evaluate_checkpoint.py \
+  --world_model historical \
+  --policy_handoff_manifest /path/to/manifest.json \
+  --data_dir /path/to/test_data \
+  --run_name batch_eval
+```
+
+### Build leaderboard
+
+```bash
+python3 scripts/build_leaderboard.py \
+  --glob 'outputs/evaluations/*/summary.json' \
+  --output outputs/evaluations/leaderboard.json \
+  --csv-output outputs/evaluations/leaderboard.csv
+```
+
+## Runtime flags
 
 `evaluate_checkpoint.py` supports:
-- `--cpu_safe`: conservative thread/runtime settings.
-- `--device auto|cpu|gpu`: backend control with GPU fail-fast validation.
-- `--allow_generative_fallback`: opt-in fallback to historical replay on generative errors.
-- `--strict_generative`: explicit strict mode (also implied in generative mode by default).
+- `--cpu_safe`: conservative thread/runtime settings
+- `--device auto|cpu|gpu`: backend control with GPU fail-fast validation
+- `--allow_generative_fallback`: opt-in fallback to historical replay
+- `--strict_generative`: explicit strict mode (generative mode is strict by default)
 
-### Safety semantics
+## Policy modes
 
-- In generative world-model mode, generation errors fail the run by default.
-- To continue on generation errors, set `--allow_generative_fallback`.
-- Invalid limit-add messages with non-positive prices are converted to no-op.
-- Invalid quotes trigger rollback to the previous valid state.
-- Quote validity requires `best_bid > 0`, `best_ask > 0`, and `best_bid < best_ask`.
-- Batch manifest relative paths are constrained to the manifest directory root.
+- `ippo_rnn`: actions come from a trained checkpoint
+- `fixed`: one constant action for all steps
+- `random`: random action each step
+- `lose_money`: adverse-action stress behavior
 
-## Core execution patterns
+## Artifacts
 
-Single evaluation:
-
-```bash
-python3 scripts/evaluate_checkpoint.py   --world_model historical   --policy_mode random   --data_dir /path/to/test_data   --run_name eval_hist_random
-```
-
-Trained policy evaluation:
-
-```bash
-python3 scripts/evaluate_checkpoint.py   --world_model historical   --policy_mode ippo_rnn   --policy_ckpt_dir /path/to/policy_ckpt   --policy_config /path/to/config.yaml   --data_dir /path/to/test_data   --run_name eval_hist_ippo
-```
-
-Batch handoff evaluation:
-
-```bash
-python3 scripts/evaluate_checkpoint.py   --world_model historical   --policy_handoff_manifest /path/to/manifest.json   --data_dir /path/to/test_data   --run_name eval_batch
-```
-
-Adversarial/tournament evaluation:
-
-```bash
-python3 scripts/adversarial_eval_phase2.py   --data_dir /path/to/test_data   --target_policy_mode random   --competitor_policy_mode fixed   --run_name eval_tournament
-```
-
-Train/eval orchestration wrapper:
-
-```bash
-python3 scripts/train_eval_phase2.py   --train_data_dir /path/to/train_data   --test_data_dir /path/to/test_data   --run_name train_eval_campaign
-```
-
-## Artifacts and contracts
-
-Per evaluation run:
+Per run:
 - `outputs/evaluations/<run_name>/summary.json`
 - `outputs/evaluations/<run_name>/step_trace.csv`
 
@@ -90,14 +119,16 @@ Adversarial runs:
 Train/eval campaign runs:
 - `outputs/evaluations/<run_name>/train_eval_summary.json`
 
-Contract/config references:
-- `config/evaluation_configs/policy_handoff_schema.json`
-- `config/evaluation_configs/phase2_alpha_contract.json`
-- `config/evaluation_configs/champion_objective_gates.json`
+## Safety behavior
+
+- Invalid limit-add messages with non-positive prices are converted to no-op.
+- Invalid quote states trigger rollback to prior valid state.
+- Quote validity requires `best_bid > 0`, `best_ask > 0`, and `best_bid < best_ask`.
+- Batch manifest relative paths are constrained to manifest directory scope.
 
 ## Leaderboard scoring
 
-Default weighted composite in `leaderboard/aggregator.py`:
+Default composite score in `leaderboard/aggregator.py`:
 
 `score = pnl - drawdown_weight*abs(drawdown) - risk_weight*risk_std - inventory_weight*abs(inventory)`
 
@@ -107,25 +138,14 @@ Default weights:
 - `risk=0.1`
 - `inventory=0.0`
 
-Custom weights can be passed via `--weights` or `--weights-config`.
-
 ## Cluster guidance
 
-On CPU-constrained nodes, cap thread settings:
+For CPU-constrained nodes:
 
 ```bash
-OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 TF_NUM_INTRAOP_THREADS=1 TF_NUM_INTEROP_THREADS=1 JAX_NUM_THREADS=1 XLA_FLAGS='--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1'
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+TF_NUM_INTRAOP_THREADS=1 TF_NUM_INTEROP_THREADS=1 JAX_NUM_THREADS=1 \
+XLA_FLAGS='--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1'
 ```
 
-Single-node guardrails are enforced in evaluation, train/eval, and adversarial entrypoints.
-
-## Troubleshooting
-
-- `lobs5_ckpt_path` required error:
-  - Use `--lobs5_ckpt_path` when `--world_model generative`.
-- GPU backend mismatch:
-  - Use `--device auto|cpu` or fix CUDA/JAX setup.
-- `ippo_rnn` missing config/checkpoint:
-  - Provide both `--policy_ckpt_dir` and `--policy_config`.
-- Handoff validation errors:
-  - Align payload to `policy_handoff_schema.json`.
+Single-node guards are enforced in evaluation, train/eval, and adversarial entrypoints.
