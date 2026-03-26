@@ -1,7 +1,10 @@
 import json
 from pathlib import Path
 
-import jax.numpy as jnp
+try:
+    import jax.numpy as jnp
+except ImportError:
+    import numpy as jnp
 
 from LOBArena.evaluate import pipeline
 from LOBArena.evaluate.policy_adapter import validate_policy_choice

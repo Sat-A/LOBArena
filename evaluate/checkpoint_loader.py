@@ -40,13 +40,13 @@ def load_world_model_from_jaxmarl(jaxmarl_root: Path, lobs5_root: Path):
 
 def restore_params_with_cpu_fallback(ckpt_path, step):
     """Restore checkpoint params with single-device fallback for topology mismatch."""
-    import jax
-    import jax.numpy as jnp
-    import orbax.checkpoint as ocp
-
     state_dir = Path(ckpt_path) / str(step) / "state"
     if not state_dir.is_dir():
         raise FileNotFoundError(f"Checkpoint state directory not found: {state_dir}")
+
+    import jax
+    import jax.numpy as jnp
+    import orbax.checkpoint as ocp
 
     checkpointer = ocp.PyTreeCheckpointer()
     try:

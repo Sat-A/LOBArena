@@ -217,7 +217,10 @@ def _choose_loss_seeking_action(mm_agent, n_actions, step_world_state, agent_sta
 
 def _force_marketable_lossy_orders(action_msgs):
     """Mutate limit-add order prices to aggressively cross the spread."""
-    import jax.numpy as jnp
+    try:
+        import jax.numpy as jnp
+    except ImportError:
+        import numpy as jnp
 
     if action_msgs.size == 0:
         return action_msgs
@@ -230,8 +233,13 @@ def _force_marketable_lossy_orders(action_msgs):
     forced_qty = jnp.maximum(qty, jnp.ones_like(qty))
     new_price = jnp.where(is_limit_add, forced_price, price)
     new_qty = jnp.where(is_limit_add, forced_qty, qty)
-    out = action_msgs.at[:, 2].set(new_qty)
-    out = out.at[:, 3].set(new_price)
+    if hasattr(action_msgs, "at"):  # JAX path
+        out = action_msgs.at[:, 2].set(new_qty)
+        out = out.at[:, 3].set(new_price)
+        return out
+    out = action_msgs.copy()  # NumPy fallback path
+    out[:, 2] = new_qty
+    out[:, 3] = new_price
     return out
 
 
