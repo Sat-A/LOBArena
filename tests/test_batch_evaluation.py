@@ -309,13 +309,8 @@ def test_run_multi_window_evaluation_parallel_and_scored(test_output_root):
     root = test_output_root / 'mw_smoke'
     summary_path = root / 'multi_window_summary.json'
     csv_path = root / 'multi_window_scores.csv'
-    plot_scores = root / 'plots' / 'multi_window_scores_by_window.png'
-    plot_aggr = root / 'plots' / 'multi_window_aggregate_stats.png'
     assert summary_path.exists()
     assert csv_path.exists()
-    if importlib.util.find_spec("matplotlib") is not None and importlib.util.find_spec("seaborn") is not None:
-        assert plot_scores.exists()
-        assert plot_aggr.exists()
 
     payload = json.loads(summary_path.read_text())
     assert payload['n_windows'] == 4
@@ -326,3 +321,28 @@ def test_run_multi_window_evaluation_parallel_and_scored(test_output_root):
     assert {w['policy_mode'] for w in payload['windows']} == {'ippo_rnn'}
     assert {w['policy_ckpt_dir'] for w in payload['windows']} == {args.policy_ckpt_dir}
     assert {w['policy_config'] for w in payload['windows']} == {args.policy_config}
+
+
+def test_generate_multi_window_plots_from_summary(test_output_root):
+    summary_path = test_output_root / 'multi_window_summary.json'
+    summary_path.write_text(
+        json.dumps(
+            {
+                'multi_window_run_name': 'mw_plots_only',
+                'windows': [
+                    {'window_name': 'w1', 'raw_pnl_score': 1.0, 'risk_adjusted_pnl_score': 0.5},
+                    {'window_name': 'w2', 'raw_pnl_score': 2.0, 'risk_adjusted_pnl_score': 1.0},
+                ],
+                'aggregates': {
+                    'raw_pnl': {'mean': 1.5, 'median': 1.5, 'iqm': 1.5},
+                    'risk_adjusted_pnl': {'mean': 0.75, 'median': 0.75, 'iqm': 0.75},
+                },
+            }
+        )
+    )
+
+    out = pipeline.generate_multi_window_plots_from_summary(str(summary_path))
+    assert out['summary_path'] == str(summary_path.resolve())
+    if importlib.util.find_spec("matplotlib") is not None and importlib.util.find_spec("seaborn") is not None:
+        assert Path(out['scores_plot']).exists()
+        assert Path(out['aggregate_plot']).exists()

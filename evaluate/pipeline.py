@@ -1095,6 +1095,21 @@ def _write_multi_window_plots(summary: dict, out_dir: Path) -> None:
     plt.close(fig)
 
 
+def generate_multi_window_plots_from_summary(summary_path: str, out_dir: str = "") -> dict:
+    p = Path(summary_path).expanduser().resolve()
+    if not p.exists():
+        raise FileNotFoundError(f"Multi-window summary not found: {p}")
+    summary = json.loads(p.read_text())
+    target_dir = Path(out_dir).expanduser().resolve() if out_dir else (p.parent / "plots")
+    _write_multi_window_plots(summary, target_dir)
+    return {
+        "summary_path": str(p),
+        "plots_dir": str(target_dir),
+        "scores_plot": str(target_dir / "multi_window_scores_by_window.png"),
+        "aggregate_plot": str(target_dir / "multi_window_aggregate_stats.png"),
+    }
+
+
 def run_multi_window_evaluation(args, eval_runner=None) -> int:
     base_run_name = args.run_name.strip() if args.run_name.strip() else time.strftime("%Y%m%d_%H%M%S")
     output_root = Path(args.output_root).expanduser().resolve()
@@ -1171,7 +1186,6 @@ def run_multi_window_evaluation(args, eval_runner=None) -> int:
     out_path = run_root / "multi_window_summary.json"
     out_path.write_text(json.dumps(mw_summary, indent=2))
     _write_multi_window_csv(window_rows, run_root / "multi_window_scores.csv")
-    _write_multi_window_plots(mw_summary, run_root / "plots")
     print(f"[LOBArena] Multi-window summary written: {out_path}")
     return 0
 

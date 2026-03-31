@@ -106,6 +106,15 @@ python3 scripts/evaluate_checkpoint.py \
   --run_name multi_window_eval
 ```
 
+### Plot multi-window results separately
+
+Generate plots later from an existing `multi_window_summary.json` (separate from scoring/evaluation):
+
+```bash
+python3 scripts/plot_multi_window.py \
+  --summary_path outputs/evaluations/<run_name>/multi_window_summary.json
+```
+
 ### GPU cluster runs (Slurm, single-node)
 
 Run tests on one GPU node:
@@ -130,8 +139,8 @@ Each run writes:
 Multi-window runs additionally write:
 - `outputs/evaluations/<run_name>/multi_window_summary.json`
 - `outputs/evaluations/<run_name>/multi_window_scores.csv`
-- `outputs/evaluations/<run_name>/plots/multi_window_scores_by_window.png`
-- `outputs/evaluations/<run_name>/plots/multi_window_aggregate_stats.png`
+- `outputs/evaluations/<run_name>/plots/multi_window_scores_by_window.png` (after running `scripts/plot_multi_window.py`)
+- `outputs/evaluations/<run_name>/plots/multi_window_aggregate_stats.png` (after running `scripts/plot_multi_window.py`)
 
 ## Reliability defaults
 
