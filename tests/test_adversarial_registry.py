@@ -21,6 +21,7 @@ def test_adversarial_competitor_registry_exists_and_parseable():
     assert "random_baseline" in data["competitors"]
     assert "fixed_baseline_hold" in data["competitors"]
     assert "ippo_rnn_placeholder" in data["competitors"]
+    assert "directional_baseline" in data["competitors"]
     assert "scripted_directional_placeholder" in data["competitors"]
 
 
@@ -31,11 +32,16 @@ def test_load_competitor_registry_returns_mapping():
     assert registry["random_baseline"]["policy_mode"] == "random"
 
 
-def test_validate_competitor_spec_rejects_unsupported_directional_placeholder():
+def test_validate_competitor_spec_accepts_directional_mode():
+    spec = {"policy_mode": "directional"}
+    _validate_competitor_spec("directional_baseline", spec)
+
+
+def test_validate_competitor_spec_rejects_unsupported_scripted_mode():
     with pytest.raises(ValueError, match="unsupported"):
         _validate_competitor_spec(
             "scripted_directional_placeholder",
-            {"policy_mode": "directional"},
+            {"policy_mode": "scripted_directional"},
         )
 
 

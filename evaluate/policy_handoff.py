@@ -50,8 +50,8 @@ def validate_policy_handoff_payload(payload, base_dir: Path):
     _ensure_exact_keys("policy", policy, _ALLOWED_POLICY)
     _ensure_required_keys("policy", policy, _ALLOWED_POLICY)
     mode = str(policy.get("mode", "")).strip().lower()
-    if mode not in {"ippo_rnn", "random", "fixed", "lose_money"}:
-        raise ValueError(f"Invalid policy.mode '{mode}'. Use ippo_rnn|random|fixed|lose_money.")
+    if mode not in {"ippo_rnn", "random", "fixed", "lose_money", "directional"}:
+        raise ValueError(f"Invalid policy.mode '{mode}'. Use ippo_rnn|random|fixed|lose_money|directional.")
     model_index = int(policy.get("model_index"))
     if model_index < 0:
         raise ValueError("policy.model_index must be >= 0")

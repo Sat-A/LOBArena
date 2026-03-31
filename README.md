@@ -63,6 +63,7 @@ python3 scripts/evaluate_checkpoint.py \
 - `fixed`: one constant action (`--fixed_action`)
 - `random`: random action sampling
 - `lose_money`: stress-test policy that intentionally takes adverse actions
+- `directional`: simple adversarial policy that alternates forced marketable buy/sell flow
 
 ## Compare multiple checkpoints
 
@@ -85,11 +86,52 @@ python3 scripts/build_leaderboard.py \
   --csv-output outputs/evaluations/leaderboard.csv
 ```
 
+### Multi-window evaluation (4 windows in parallel)
+
+Runs 4 windows in 2026 (month/week × adversarial on/off) concurrently and writes aggregate stats (Mean/Median/IQM) for raw and risk-adjusted PnL.
+
+Adversarial windows are regime/opponent conditions around the same evaluated policy. They do **not** replace the evaluated policy with an adversarial policy; reported PnL is computed for the evaluated agent only.
+
+Lesson learned: earlier multi-window wiring accidentally swapped the evaluated policy in adversarial windows. This is fixed; adversarial mode now changes market/opponent conditions only.
+
+```bash
+python3 scripts/evaluate_checkpoint.py \
+  --world_model historical \
+  --policy_mode ippo_rnn \
+  --policy_ckpt_dir /path/to/your/checkpoint_dir \
+  --policy_config /path/to/your/config.yaml \
+  --data_dir /path/to/test_data \
+  --multi_window \
+  --risk_weights pnl=1.0,drawdown=0.5,risk=0.1,inventory=0.0 \
+  --run_name multi_window_eval
+```
+
+### GPU cluster runs (Slurm, single-node)
+
+Run tests on one GPU node:
+
+```bash
+sbatch slurm/sbatch_gpu_tests.sh
+```
+
+Run parallel multi-window evaluation on one GPU node:
+
+```bash
+sbatch --export=ALL,DATA_DIR=/path/to/test_data,POLICY_MODE=random,RUN_NAME=phase1_gpu_parallel \
+  slurm/sbatch_gpu_parallel_eval.sh
+```
+
 ## Outputs
 
 Each run writes:
 - `outputs/evaluations/<run_name>/summary.json`
 - `outputs/evaluations/<run_name>/step_trace.csv`
+
+Multi-window runs additionally write:
+- `outputs/evaluations/<run_name>/multi_window_summary.json`
+- `outputs/evaluations/<run_name>/multi_window_scores.csv`
+- `outputs/evaluations/<run_name>/plots/multi_window_scores_by_window.png`
+- `outputs/evaluations/<run_name>/plots/multi_window_aggregate_stats.png`
 
 ## Reliability defaults
 

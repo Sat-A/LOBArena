@@ -1,5 +1,7 @@
 import argparse
 import copy
+import concurrent.futures
+import csv
 import json
 import math
 import os
@@ -7,6 +9,7 @@ import platform
 import sys
 import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from LOBArena.evaluate.checkpoint_loader import load_world_model_from_jaxmarl, restore_params_with_cpu_fallback
@@ -19,7 +22,13 @@ from LOBArena.evaluate.policy_handoff import load_policy_handoff
 from LOBArena.evaluate.single_node_guard import enforce_single_node_context
 from LOBArena.evaluate.world_model_selector import validate_world_model_choice
 from LOBArena.guardrails.order_validators import book_quotes_valid, sanitize_action_messages
-from LOBArena.metrics.computation import build_phase1_metrics
+from LOBArena.metrics.computation import (
+    build_phase1_metrics,
+    compute_raw_pnl_score,
+    compute_risk_adjusted_pnl_score,
+    normalize_risk_score_weights,
+    risk_score_weights_from_cli,
+)
 
 
 class RunArtifacts(object):
@@ -35,11 +44,19 @@ class BatchCandidate:
     policy_handoff_path: str
 
 
+@dataclass(frozen=True)
+class MultiWindowSpec:
+    name: str
+    start_date: str
+    end_date: str
+    adversarial: bool
+
+
 def parse_args() -> argparse.Namespace:
     workspace_root = Path(__file__).resolve().parents[2]
     p = argparse.ArgumentParser(description="LOBArena Phase 1 evaluation pipeline")
     p.add_argument("--world_model", choices=["historical", "generative"], required=True)
-    p.add_argument("--policy_mode", choices=["random", "fixed", "ippo_rnn", "lose_money"], default="random")
+    p.add_argument("--policy_mode", choices=["random", "fixed", "ippo_rnn", "lose_money", "directional"], default="random")
     p.add_argument("--fixed_action", type=int, default=0)
 
     p.add_argument("--jaxmarl_root", default=str(workspace_root / "JaxMARL-HFT"))
@@ -59,6 +76,17 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="JSON manifest with policy handoff candidates for batch evaluation.",
     )
+    p.add_argument("--multi_window", action="store_true", help="Run fixed 4-window evaluation in parallel.")
+    p.add_argument(
+        "--multi_window_manifest",
+        default="",
+        help="Optional JSON manifest overriding default 4-window specs.",
+    )
+    p.add_argument(
+        "--risk_weights",
+        default="",
+        help="Comma-separated risk score weights, e.g. pnl=1,drawdown=0.5,risk=0.1,inventory=0",
+    )
 
     p.add_argument("--data_dir", required=True)
     p.add_argument("--sample_index", type=int, default=0)
@@ -74,6 +102,12 @@ def parse_args() -> argparse.Namespace:
 
     p.add_argument("--output_root", default=str(workspace_root / "LOBArena" / "outputs" / "evaluations"))
     p.add_argument("--run_name", default="")
+    p.add_argument(
+        "--multi_window_workers",
+        type=int,
+        default=4,
+        help="Parallel workers for multi-window mode (default: 4).",
+    )
     p.add_argument("--cpu_safe", action="store_true", help="Apply conservative CPU-thread runtime limits.")
     p.add_argument("--device", choices=["auto", "cpu", "gpu"], default="auto")
     p.add_argument(
@@ -243,6 +277,37 @@ def _force_marketable_lossy_orders(action_msgs):
     return out
 
 
+def _force_directional_marketable_orders(action_msgs, side: int):
+    """Mutate limit-add order prices to cross the spread in one direction."""
+    try:
+        import jax.numpy as jnp
+    except ImportError:
+        import numpy as jnp
+
+    if action_msgs.size == 0:
+        return action_msgs
+    side_i = 1 if int(side) >= 0 else -1
+    msg_types = action_msgs[:, 0]
+    sides = action_msgs[:, 1]
+    qty = action_msgs[:, 2]
+    price = action_msgs[:, 3]
+    is_limit_add = msg_types == 1
+    force_mask = is_limit_add
+    forced_sides = jnp.where(force_mask, jnp.int32(side_i), sides)
+    forced_price = jnp.where(force_mask, jnp.int32(1_000_000_000 if side_i > 0 else 1), price)
+    forced_qty = jnp.where(force_mask, jnp.maximum(qty, jnp.ones_like(qty)), qty)
+    if hasattr(action_msgs, "at"):  # JAX path
+        out = action_msgs.at[:, 1].set(forced_sides)
+        out = out.at[:, 2].set(forced_qty)
+        out = out.at[:, 3].set(forced_price)
+        return out
+    out = action_msgs.copy()  # NumPy fallback path
+    out[:, 1] = forced_sides
+    out[:, 2] = forced_qty
+    out[:, 3] = forced_price
+    return out
+
+
 def _write_csv(path, header, rows):
     import csv
 
@@ -255,6 +320,104 @@ def _write_csv(path, header, rows):
 
 def _is_batch_mode(args: argparse.Namespace) -> bool:
     return bool(args.policy_handoff_batch) or bool(str(args.policy_handoff_manifest).strip())
+
+
+def _is_multi_window_mode(args: argparse.Namespace) -> bool:
+    return bool(getattr(args, "multi_window", False))
+
+
+def _parse_yyyy_mm_dd(value: str) -> datetime:
+    return datetime.strptime(value, "%Y-%m-%d")
+
+
+def _validate_window_dates_2026(start_date: str, end_date: str) -> None:
+    start = _parse_yyyy_mm_dd(start_date)
+    end = _parse_yyyy_mm_dd(end_date)
+    if start.year != 2026 or end.year != 2026:
+        raise ValueError(f"Window must be in 2026: {start_date} -> {end_date}")
+    if end < start:
+        raise ValueError(f"Window end_date must be >= start_date: {start_date} -> {end_date}")
+
+
+def _month_end(date_str: str) -> str:
+    d = _parse_yyyy_mm_dd(date_str)
+    if d.month == 12:
+        next_month = datetime(d.year + 1, 1, 1)
+    else:
+        next_month = datetime(d.year, d.month + 1, 1)
+    return (next_month - timedelta(days=1)).strftime("%Y-%m-%d")
+
+
+def _week_end(date_str: str) -> str:
+    d = _parse_yyyy_mm_dd(date_str)
+    return (d + timedelta(days=6)).strftime("%Y-%m-%d")
+
+
+def _default_multi_windows() -> list[MultiWindowSpec]:
+    month_start = "2026-01-01"
+    week_start = "2026-03-02"
+    month_end = _month_end(month_start)
+    week_end = _week_end(week_start)
+    return [
+        MultiWindowSpec("month_adv_on", month_start, month_end, True),
+        MultiWindowSpec("month_adv_off", month_start, month_end, False),
+        MultiWindowSpec("week_adv_on", week_start, week_end, True),
+        MultiWindowSpec("week_adv_off", week_start, week_end, False),
+    ]
+
+
+def _load_multi_window_specs(manifest_path: str) -> list[MultiWindowSpec]:
+    if not manifest_path:
+        specs = _default_multi_windows()
+    else:
+        p = Path(manifest_path).expanduser().resolve()
+        if not p.exists():
+            raise FileNotFoundError(f"Multi-window manifest not found: {p}")
+        payload = json.loads(p.read_text())
+        raw_windows = payload.get("windows", payload if isinstance(payload, list) else None)
+        if not isinstance(raw_windows, list) or not raw_windows:
+            raise ValueError("Multi-window manifest must provide a non-empty windows list")
+        specs = []
+        for i, w in enumerate(raw_windows):
+            if not isinstance(w, dict):
+                raise ValueError(f"Window entry at index {i} must be an object")
+            name = str(w.get("name", f"window_{i+1}")).strip() or f"window_{i+1}"
+            start = str(w.get("start_date", "")).strip()
+            end = str(w.get("end_date", "")).strip()
+            adversarial = bool(w.get("adversarial", False))
+            if not start or not end:
+                raise ValueError(f"Window '{name}' must include start_date and end_date")
+            specs.append(MultiWindowSpec(name=name, start_date=start, end_date=end, adversarial=adversarial))
+
+    if len(specs) != 4:
+        raise ValueError(f"Expected exactly 4 windows, got {len(specs)}")
+    for spec in specs:
+        _validate_window_dates_2026(spec.start_date, spec.end_date)
+    return specs
+
+
+def _iqm(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(float(v) for v in values)
+    n = len(ordered)
+    q1_idx = int(0.25 * (n - 1))
+    q3_idx = int(0.75 * (n - 1))
+    core = ordered[q1_idx : q3_idx + 1]
+    return float(sum(core) / len(core)) if core else float(sum(ordered) / len(ordered))
+
+
+def _compute_mean_median_iqm(values: list[float]) -> dict:
+    if not values:
+        return {"mean": 0.0, "median": 0.0, "iqm": 0.0}
+    ordered = sorted(float(v) for v in values)
+    n = len(ordered)
+    mean = float(sum(ordered) / n)
+    if n % 2 == 1:
+        median = float(ordered[n // 2])
+    else:
+        median = float((ordered[n // 2 - 1] + ordered[n // 2]) / 2.0)
+    return {"mean": mean, "median": median, "iqm": _iqm(ordered)}
 
 
 def _load_policy_handoff_manifest(path: str):
@@ -544,7 +707,7 @@ def _run_single_evaluation(args) -> dict:
             obs = _build_obs(step_i, int(bid_before), int(ask_before), agent_state, current_world_time)
             action_i, policy_hidden = policy.act_with_state(obs, policy_hidden, done=False)
             action_this_step = jnp.int32(action_i)
-        else:
+        elif pol_sel.mode == "lose_money":
             step_world_state = _build_world_state(sim, current_sim_state, current_world_time)
             action_this_step = _choose_loss_seeking_action(
                 mm_agent,
@@ -553,11 +716,18 @@ def _run_single_evaluation(args) -> dict:
                 agent_state,
                 agent_params,
             )
+        else:
+            # Simple deterministic directional adversary:
+            # alternate between two actions to trigger both buy and sell marketable flow.
+            action_this_step = jnp.int32(step_i % 2)
 
         step_world_state = _build_world_state(sim, current_sim_state, current_world_time)
         action_msgs, cancel_msgs, _extras = mm_agent.get_messages(action_this_step, step_world_state, agent_state, agent_params)
         if pol_sel.mode == "lose_money":
             action_msgs = _force_marketable_lossy_orders(action_msgs)
+        elif pol_sel.mode == "directional":
+            directional_side = 1 if (step_i % 2 == 0) else -1
+            action_msgs = _force_directional_marketable_orders(action_msgs, directional_side)
 
         action_msgs = sanitize_action_messages(action_msgs)
         cancel_msgs = sanitize_action_messages(cancel_msgs)
@@ -697,6 +867,7 @@ def _run_single_evaluation(args) -> dict:
         "dataset_effective_dir": str(selected_data_dir),
         "sample_index": int(idx),
         "seed": int(args.seed),
+        "date_window": {"start_date": str(args.start_date or ""), "end_date": str(args.end_date or "")},
         "n_steps_requested": int(args.n_steps),
         "n_steps_executed": int(len(step_rows)),
         "runtime": _runtime_metadata(args, selected_data_dir, jax_backend, jax_devices),
@@ -805,10 +976,193 @@ def run_batch_evaluation(args, eval_runner=None) -> int:
     return 0
 
 
+def _run_single_window_job(job):
+    window_args, runner, window_spec = job
+    summary = runner(window_args)
+    raw_score = compute_raw_pnl_score(summary)
+    risk_weights = normalize_risk_score_weights(getattr(window_args, "_risk_weights_resolved", None))
+    risk_score = compute_risk_adjusted_pnl_score(summary, weights=risk_weights)
+    return {
+        "window": window_spec,
+        "summary": summary,
+        "raw_pnl_score": float(raw_score),
+        "risk_adjusted_pnl_score": float(risk_score),
+        "risk_weights": risk_weights,
+        "policy_mode": str(getattr(window_args, "policy_mode", "")),
+        "policy_ckpt_dir": str(getattr(window_args, "policy_ckpt_dir", "")),
+        "policy_config": str(getattr(window_args, "policy_config", "")),
+    }
+
+
+def _run_single_window_job_process(window_args, window_spec: MultiWindowSpec, risk_weights: dict):
+    summary = _run_single_evaluation(window_args)
+    raw_score = compute_raw_pnl_score(summary)
+    risk_score = compute_risk_adjusted_pnl_score(summary, weights=risk_weights)
+    return {
+        "window": window_spec,
+        "summary": summary,
+        "raw_pnl_score": float(raw_score),
+        "risk_adjusted_pnl_score": float(risk_score),
+        "risk_weights": risk_weights,
+        "policy_mode": str(getattr(window_args, "policy_mode", "")),
+        "policy_ckpt_dir": str(getattr(window_args, "policy_ckpt_dir", "")),
+        "policy_config": str(getattr(window_args, "policy_config", "")),
+    }
+
+
+def _write_multi_window_csv(window_rows, out_path: Path) -> None:
+    headers = [
+        "window_name",
+        "adversarial",
+        "start_date",
+        "end_date",
+        "policy_mode",
+        "policy_ckpt_dir",
+        "policy_config",
+        "run_name",
+        "run_dir",
+        "summary_path",
+        "raw_pnl_score",
+        "risk_adjusted_pnl_score",
+    ]
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=headers)
+        writer.writeheader()
+        for row in window_rows:
+            writer.writerow({k: row.get(k, "") for k in headers})
+
+
+def _write_multi_window_plots(summary: dict, out_dir: Path) -> None:
+    import matplotlib.pyplot as plt
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    windows = summary.get("windows", [])
+    labels = [str(w.get("window_name", "")) for w in windows]
+    raw_scores = [float(w.get("raw_pnl_score", 0.0)) for w in windows]
+    risk_scores = [float(w.get("risk_adjusted_pnl_score", 0.0)) for w in windows]
+    x = list(range(len(labels)))
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(x, raw_scores, marker="o", label="Raw PnL")
+    ax.plot(x, risk_scores, marker="o", label="Risk-adjusted PnL")
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, rotation=25, ha="right")
+    ax.set_title("Multi-window scores by window")
+    ax.set_ylabel("Score")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(out_dir / "multi_window_scores_by_window.png", dpi=220)
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    aggr = summary.get("aggregates", {})
+    raw_aggr = aggr.get("raw_pnl", {})
+    risk_aggr = aggr.get("risk_adjusted_pnl", {})
+    stats = ["mean", "median", "iqm"]
+    raw_vals = [float(raw_aggr.get(k, 0.0)) for k in stats]
+    risk_vals = [float(risk_aggr.get(k, 0.0)) for k in stats]
+    width = 0.36
+    xpos = list(range(len(stats)))
+    ax.bar([i - width / 2 for i in xpos], raw_vals, width=width, label="Raw PnL")
+    ax.bar([i + width / 2 for i in xpos], risk_vals, width=width, label="Risk-adjusted PnL")
+    ax.set_xticks(xpos)
+    ax.set_xticklabels([s.upper() for s in stats])
+    ax.set_title("Aggregated multi-window scores")
+    ax.set_ylabel("Score")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(out_dir / "multi_window_aggregate_stats.png", dpi=220)
+    plt.close(fig)
+
+
+def run_multi_window_evaluation(args, eval_runner=None) -> int:
+    base_run_name = args.run_name.strip() if args.run_name.strip() else time.strftime("%Y%m%d_%H%M%S")
+    output_root = Path(args.output_root).expanduser().resolve()
+    run_root = output_root / base_run_name
+    run_root.mkdir(parents=True, exist_ok=True)
+
+    runner = eval_runner or _run_single_evaluation
+    risk_weights = risk_score_weights_from_cli(getattr(args, "risk_weights", ""))
+    windows = _load_multi_window_specs(getattr(args, "multi_window_manifest", ""))
+    workers = max(1, min(int(getattr(args, "multi_window_workers", 4)), len(windows)))
+
+    jobs = []
+    for i, w in enumerate(windows, start=1):
+        window_args = copy.deepcopy(args)
+        window_args.output_root = str(run_root)
+        window_args.run_name = f"{i:03d}_{_sanitize_run_suffix(w.name)}"
+        window_args.start_date = w.start_date
+        window_args.end_date = w.end_date
+        # Keep evaluated policy fixed across windows; adversarial toggles regime/opponents only.
+        window_args.policy_mode = args.policy_mode
+        window_args._multi_window_adversarial = bool(w.adversarial)
+        window_args._multi_window_window_name = w.name
+        window_args._risk_weights_resolved = risk_weights
+        jobs.append((window_args, w))
+
+    results = []
+    if eval_runner is None:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(_run_single_window_job_process, window_args, w, risk_weights) for (window_args, w) in jobs]
+            for fut in concurrent.futures.as_completed(futures):
+                results.append(fut.result())
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(_run_single_window_job, (window_args, runner, w)) for (window_args, w) in jobs]
+            for fut in concurrent.futures.as_completed(futures):
+                results.append(fut.result())
+    results = sorted(results, key=lambda x: x["window"].name)
+
+    raw_scores = [r["raw_pnl_score"] for r in results]
+    risk_scores = [r["risk_adjusted_pnl_score"] for r in results]
+    window_rows = []
+    for r in results:
+        w = r["window"]
+        s = r["summary"]
+        window_rows.append(
+            {
+                "window_name": w.name,
+                "adversarial": bool(w.adversarial),
+                "start_date": w.start_date,
+                "end_date": w.end_date,
+                "policy_mode": r.get("policy_mode", ""),
+                "policy_ckpt_dir": r.get("policy_ckpt_dir", ""),
+                "policy_config": r.get("policy_config", ""),
+                "run_name": s.get("run_name", ""),
+                "run_dir": s.get("run_dir", ""),
+                "summary_path": str(Path(s.get("run_dir", "")) / "summary.json"),
+                "raw_pnl_score": r["raw_pnl_score"],
+                "risk_adjusted_pnl_score": r["risk_adjusted_pnl_score"],
+            }
+        )
+
+    mw_summary = {
+        "multi_window_run_name": base_run_name,
+        "multi_window_root": str(run_root),
+        "n_windows": len(window_rows),
+        "parallel_workers": workers,
+        "risk_adjusted_weights": risk_weights,
+        "windows": window_rows,
+        "aggregates": {
+            "raw_pnl": _compute_mean_median_iqm(raw_scores),
+            "risk_adjusted_pnl": _compute_mean_median_iqm(risk_scores),
+        },
+    }
+    out_path = run_root / "multi_window_summary.json"
+    out_path.write_text(json.dumps(mw_summary, indent=2))
+    _write_multi_window_csv(window_rows, run_root / "multi_window_scores.csv")
+    _write_multi_window_plots(mw_summary, run_root / "plots")
+    print(f"[LOBArena] Multi-window summary written: {out_path}")
+    return 0
+
+
 def main() -> int:
     args = parse_args()
     enforce_single_node_context(context_name="phase2 evaluation entrypoint", args=args)
     _configure_runtime(args)
+    if _is_multi_window_mode(args):
+        return run_multi_window_evaluation(args)
     if _is_batch_mode(args):
         return run_batch_evaluation(args)
 

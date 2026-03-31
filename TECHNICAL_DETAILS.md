@@ -103,6 +103,7 @@ python3 scripts/build_leaderboard.py \
 - `fixed`: one constant action for all steps
 - `random`: random action each step
 - `lose_money`: adverse-action stress behavior
+- `directional`: deterministic adversary that alternates forced marketable buy/sell behavior
 
 ## Artifacts
 
@@ -118,6 +119,10 @@ Adversarial runs:
 
 Train/eval campaign runs:
 - `outputs/evaluations/<run_name>/train_eval_summary.json`
+
+Multi-window evaluations apply adversarial settings as regime/opponent conditions while keeping the same evaluated policy across windows. Evaluation metrics, including PnL, are computed for the evaluated agent only.
+
+Lesson learned: an earlier multi-window wiring bug accidentally changed the evaluated policy in adversarial windows. The fix preserves evaluated-policy identity and varies only regime/opponent conditions.
 
 ## Safety behavior
 
@@ -146,6 +151,13 @@ For CPU-constrained nodes:
 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
 TF_NUM_INTRAOP_THREADS=1 TF_NUM_INTEROP_THREADS=1 JAX_NUM_THREADS=1 \
 XLA_FLAGS='--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1'
+```
+
+For GPU cluster runs (single-node soft constraint), use:
+
+```bash
+sbatch slurm/sbatch_gpu_tests.sh
+sbatch --export=ALL,DATA_DIR=/path/to/test_data,POLICY_MODE=random,RUN_NAME=phase1_gpu_parallel slurm/sbatch_gpu_parallel_eval.sh
 ```
 
 Single-node guards are enforced in evaluation, train/eval, and adversarial entrypoints.

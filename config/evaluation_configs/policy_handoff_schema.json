@@ -23,7 +23,7 @@
       "properties": {
         "mode": {
           "type": "string",
-          "enum": ["ippo_rnn", "random", "fixed", "lose_money"]
+          "enum": ["ippo_rnn", "random", "fixed", "lose_money", "directional"]
         },
         "checkpoint_dir": {
           "type": "string",

@@ -15,10 +15,13 @@
       "policy_ckpt_dir": "/path/to/ippo/checkpoint_dir",
       "policy_config": "/path/to/ippo/config.yaml"
     },
+    "directional_baseline": {
+      "description": "Simple directional adversary that forces alternating marketable buy/sell flow",
+      "policy_mode": "directional"
+    },
     "scripted_directional_placeholder": {
-      "description": "Placeholder scripted/directional competitor (not yet implemented)",
-      "policy_mode": "directional",
-      "supported": false
+      "description": "Legacy alias to directional baseline",
+      "policy_mode": "directional"
     },
     "phase2_candidate_001": {
       "policy_handoff": "/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/phase2_handoff_candidate_001.json",

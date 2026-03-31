@@ -288,6 +288,38 @@ def _resolve_weights(weights_arg: str, weights_config: str) -> Dict[str, float]:
     return dict(DEFAULT_WEIGHTS)
 
 
+def _iqm(values: List[float]) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(float(v) for v in values)
+    n = len(ordered)
+    q1_idx = int(0.25 * (n - 1))
+    q3_idx = int(0.75 * (n - 1))
+    core = ordered[q1_idx : q3_idx + 1]
+    return float(sum(core) / len(core)) if core else float(sum(ordered) / len(ordered))
+
+
+def _mean_median_iqm(values: List[float]) -> Dict[str, float]:
+    if not values:
+        return {"mean": 0.0, "median": 0.0, "iqm": 0.0}
+    ordered = sorted(float(v) for v in values)
+    n = len(ordered)
+    mean = float(sum(ordered) / n)
+    median = float(ordered[n // 2]) if (n % 2 == 1) else float((ordered[n // 2 - 1] + ordered[n // 2]) / 2.0)
+    return {"mean": mean, "median": median, "iqm": _iqm(ordered)}
+
+
+def aggregate_multi_window_summary(summary_payload: Dict[str, Any]) -> Dict[str, Any]:
+    windows = summary_payload.get("windows", [])
+    raw = [_as_float(w.get("raw_pnl_score", 0.0)) for w in windows if isinstance(w, dict)]
+    risk = [_as_float(w.get("risk_adjusted_pnl_score", 0.0)) for w in windows if isinstance(w, dict)]
+    return {
+        "n_windows": len(windows),
+        "raw_pnl": _mean_median_iqm(raw),
+        "risk_adjusted_pnl": _mean_median_iqm(risk),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Aggregate LOBArena run summaries into a leaderboard")
     parser.add_argument("--glob", required=True, dest="glob_pattern", help="Glob pattern for summary JSON files")

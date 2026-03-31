@@ -1,5 +1,6 @@
 
 import math
+from typing import Any, Dict
 
 
 def max_drawdown(equity_curve):
@@ -48,3 +49,73 @@ def build_phase1_metrics(final_pnl, pnl_trace, inventory_trace, mid_before_actio
         "inventory": inventory_stats(inventory_trace),
         "impact": {"mean_abs_midprice_change_after_action": impact_proxy(mid_before_action, mid_after_action)},
     }
+
+
+RISK_SCORE_DEFAULT_WEIGHTS: Dict[str, float] = {
+    "pnl": 1.0,
+    "drawdown": 0.5,
+    "risk": 0.1,
+    "inventory": 0.0,
+}
+
+
+def _as_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def normalize_risk_score_weights(raw_weights: Dict[str, Any] | None) -> Dict[str, float]:
+    out = dict(RISK_SCORE_DEFAULT_WEIGHTS)
+    if not raw_weights:
+        return out
+    for key in ("pnl", "drawdown", "risk", "inventory"):
+        if key in raw_weights:
+            out[key] = _as_float(raw_weights.get(key), out[key])
+    return out
+
+
+def risk_score_weights_from_cli(weights_arg: str) -> Dict[str, float]:
+    if not str(weights_arg or "").strip():
+        return dict(RISK_SCORE_DEFAULT_WEIGHTS)
+    raw: Dict[str, float] = {}
+    for item in str(weights_arg).split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise ValueError(f"Invalid weight item '{item}'. Expected key=value.")
+        key, value = item.split("=", 1)
+        raw[key.strip()] = _as_float(value.strip())
+    return normalize_risk_score_weights(raw)
+
+
+def compute_raw_pnl_score(summary_or_metrics: Dict[str, Any]) -> float:
+    metrics = summary_or_metrics.get("metrics", summary_or_metrics)
+    pnl = metrics.get("pnl", {}) if isinstance(metrics, dict) else {}
+    return _as_float(pnl.get("total_pnl", 0.0))
+
+
+def compute_risk_adjusted_pnl_score(
+    summary_or_metrics: Dict[str, Any],
+    weights: Dict[str, Any] | None = None,
+) -> float:
+    metrics = summary_or_metrics.get("metrics", summary_or_metrics)
+    if not isinstance(metrics, dict):
+        metrics = {}
+    pnl = metrics.get("pnl", {})
+    drawdown = metrics.get("drawdown", {})
+    risk = metrics.get("risk", {})
+    resolved = normalize_risk_score_weights(weights)
+
+    total_pnl = _as_float(pnl.get("total_pnl", 0.0))
+    max_drawdown_abs = abs(_as_float(drawdown.get("max_drawdown", 0.0)))
+    risk_std = _as_float(risk.get("pnl_delta_std", 0.0))
+    inventory_abs = abs(_as_float(pnl.get("inventory", 0.0)))
+    return (
+        resolved["pnl"] * total_pnl
+        - resolved["drawdown"] * max_drawdown_abs
+        - resolved["risk"] * risk_std
+        - resolved["inventory"] * inventory_abs
+    )

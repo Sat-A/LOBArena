@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from LOBArena.leaderboard.aggregator import aggregate
+from LOBArena.leaderboard.aggregator import aggregate, aggregate_multi_window_summary
 
 
 def _write_summary(path: Path, payload: dict):
@@ -191,3 +191,20 @@ def test_aggregate_skips_malformed_summary_files(tmp_path):
     result = aggregate(str(tmp_path / "*" / "summary.json"))
     assert result["n_runs"] == 1
     assert result["leaderboard"][0]["run_name"] == "ok_run"
+
+
+def test_aggregate_multi_window_summary_mean_median_iqm():
+    payload = {
+        "windows": [
+            {"raw_pnl_score": 10.0, "risk_adjusted_pnl_score": 9.0},
+            {"raw_pnl_score": 20.0, "risk_adjusted_pnl_score": 18.0},
+            {"raw_pnl_score": 30.0, "risk_adjusted_pnl_score": 27.0},
+            {"raw_pnl_score": 40.0, "risk_adjusted_pnl_score": 36.0},
+        ]
+    }
+    aggr = aggregate_multi_window_summary(payload)
+    assert aggr["n_windows"] == 4
+    assert aggr["raw_pnl"]["mean"] == 25.0
+    assert aggr["raw_pnl"]["median"] == 25.0
+    assert aggr["raw_pnl"]["iqm"] == 20.0
+    assert aggr["risk_adjusted_pnl"]["mean"] == 22.5

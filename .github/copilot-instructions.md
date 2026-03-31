@@ -53,6 +53,13 @@ Run a single test:
 python -m pytest tests/test_metrics.py::test_build_phase1_metrics_shapes -v
 ```
 
+GPU/Slurm single-node workflows (preferred on cluster):
+
+```bash
+sbatch slurm/sbatch_gpu_tests.sh
+sbatch --export=ALL,DATA_DIR=/path/to/test_data,POLICY_MODE=random,RUN_NAME=phase1_gpu_parallel slurm/sbatch_gpu_parallel_eval.sh
+```
+
 Linting:
 - No repository-wide lint command/config is defined in this repo.
 
@@ -85,6 +92,7 @@ Typical flow: parse CLI -> validate mode/config -> bootstrap external paths -> r
 - On CPU-constrained hosts, set thread caps before running to avoid JAX thread-creation failures:
   - `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 TF_NUM_INTRAOP_THREADS=1 TF_NUM_INTEROP_THREADS=1 JAX_NUM_THREADS=1`
   - `XLA_FLAGS='--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1'`
+- Cluster compute policy (soft constraint): prefer single-node jobs for tests/evals, including GPU jobs (`--nodes=1` in sbatch scripts).
 - Guardrails prioritize simulator integrity:
   - invalid limit-add orders with non-positive prices are converted to no-op message type,
   - invalid quotes after action/world step trigger rollback to prior valid state in pipeline loop.

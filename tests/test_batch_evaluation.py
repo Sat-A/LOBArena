@@ -34,6 +34,9 @@ def _base_args(output_root: Path, run_name: str = 'batch_eval'):
         policy_handoff='',
         policy_handoff_batch=None,
         policy_handoff_manifest='',
+        multi_window=False,
+        multi_window_manifest='',
+        risk_weights='',
         data_dir=str(repo_root / 'LOBArena'),
         sample_index=0,
         checkpoint_step=None,
@@ -46,6 +49,7 @@ def _base_args(output_root: Path, run_name: str = 'batch_eval'):
         seed=None,
         output_root=str(output_root),
         run_name=run_name,
+        multi_window_workers=4,
         fast_startup=True,
         cpu_safe=False,
         device='auto',
@@ -94,7 +98,10 @@ def test_run_batch_evaluation_writes_summary_and_applies_shared_fairness(test_ou
 
     seen = []
 
+    seen_calls = []
+
     def _fake_eval_runner(candidate_args):
+        seen_calls.append({'run_name': candidate_args.run_name, 'policy_mode': candidate_args.policy_mode})
         run_dir = Path(candidate_args.output_root) / candidate_args.run_name
         run_dir.mkdir(parents=True, exist_ok=True)
         seen.append(
@@ -253,3 +260,67 @@ def test_manifest_rejects_relative_path_escape(test_output_root):
 
     with pytest.raises(ValueError, match='escapes manifest directory'):
         pipeline.resolve_batch_candidates(args)
+
+
+def test_run_multi_window_evaluation_parallel_and_scored(test_output_root):
+    args = _base_args(test_output_root, run_name='mw_smoke')
+    args.multi_window = True
+    args.risk_weights = 'pnl=1.0,drawdown=0.5,risk=0.1,inventory=0.0'
+    args.policy_mode = 'ippo_rnn'
+    args.policy_ckpt_dir = str(test_output_root / 'fake_ckpt_dir')
+    args.policy_config = str(test_output_root / 'fake_policy_config.yaml')
+
+    seen_calls = []
+
+    def _fake_eval_runner(candidate_args):
+        seen_calls.append(
+            {
+                'run_name': candidate_args.run_name,
+                'policy_mode': candidate_args.policy_mode,
+                'policy_ckpt_dir': candidate_args.policy_ckpt_dir,
+                'policy_config': candidate_args.policy_config,
+                'adversarial': bool(getattr(candidate_args, '_multi_window_adversarial', False)),
+            }
+        )
+        run_dir = Path(candidate_args.output_root) / candidate_args.run_name
+        run_dir.mkdir(parents=True, exist_ok=True)
+        pnl = 10.0 if getattr(candidate_args, '_multi_window_adversarial', False) else 20.0
+        return {
+            'run_name': candidate_args.run_name,
+            'run_dir': str(run_dir),
+            'metrics': {
+                'pnl': {'total_pnl': pnl, 'inventory': 0.0},
+                'drawdown': {'max_drawdown': -2.0},
+                'risk': {'pnl_delta_std': 1.0},
+            },
+        }
+
+    rc = pipeline.run_multi_window_evaluation(args, eval_runner=_fake_eval_runner)
+    assert rc == 0
+
+    # Adversarial windows must not mutate evaluated policy identity.
+    assert len(seen_calls) == 4
+    assert all(c['policy_mode'] == 'ippo_rnn' for c in seen_calls)
+    assert all(c['policy_ckpt_dir'] == args.policy_ckpt_dir for c in seen_calls)
+    assert all(c['policy_config'] == args.policy_config for c in seen_calls)
+    assert sum(1 for c in seen_calls if c['adversarial']) == 2
+
+    root = test_output_root / 'mw_smoke'
+    summary_path = root / 'multi_window_summary.json'
+    csv_path = root / 'multi_window_scores.csv'
+    plot_scores = root / 'plots' / 'multi_window_scores_by_window.png'
+    plot_aggr = root / 'plots' / 'multi_window_aggregate_stats.png'
+    assert summary_path.exists()
+    assert csv_path.exists()
+    assert plot_scores.exists()
+    assert plot_aggr.exists()
+
+    payload = json.loads(summary_path.read_text())
+    assert payload['n_windows'] == 4
+    assert payload['parallel_workers'] == 4
+    assert set(payload['aggregates'].keys()) == {'raw_pnl', 'risk_adjusted_pnl'}
+    assert payload['aggregates']['raw_pnl']['mean'] == 15.0
+    assert [w['adversarial'] for w in payload['windows']] == [False, True, False, True]
+    assert {w['policy_mode'] for w in payload['windows']} == {'ippo_rnn'}
+    assert {w['policy_ckpt_dir'] for w in payload['windows']} == {args.policy_ckpt_dir}
+    assert {w['policy_config'] for w in payload['windows']} == {args.policy_config}

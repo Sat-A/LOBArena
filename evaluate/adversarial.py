@@ -18,12 +18,12 @@ def parse_args():
     workspace_root = Path(__file__).resolve().parents[2]
     p = argparse.ArgumentParser(description="LOBArena Phase 2 adversarial evaluation")
     p.add_argument("--data_dir", required=True)
-    p.add_argument("--target_policy_mode", choices=["random", "fixed", "ippo_rnn", "lose_money"], default="random")
+    p.add_argument("--target_policy_mode", choices=["random", "fixed", "ippo_rnn", "lose_money", "directional"], default="random")
     p.add_argument("--target_fixed_action", type=int, default=0)
     p.add_argument("--target_policy_ckpt", default="")
     p.add_argument("--target_policy_config", default="")
     p.add_argument("--target_policy_handoff", default="")
-    p.add_argument("--competitor_policy_mode", choices=["random", "fixed", "ippo_rnn", "lose_money"], default="random")
+    p.add_argument("--competitor_policy_mode", choices=["random", "fixed", "ippo_rnn", "lose_money", "directional"], default="random")
     p.add_argument("--competitor_fixed_action", type=int, default=0)
     p.add_argument("--competitor_policy_ckpt", default="")
     p.add_argument("--competitor_policy_config", default="")
@@ -127,12 +127,12 @@ def _validate_competitor_spec(name: str, spec: dict) -> None:
         return
 
     mode = str(spec.get("policy_mode", "")).strip().lower()
-    if mode in {"directional", "scripted", "scripted_directional"}:
+    if mode in {"scripted", "scripted_directional"}:
         raise ValueError(
             f"Competitor '{name}' uses unsupported policy_mode '{mode}'. "
-            "This placeholder is not executable yet."
+            "Use 'directional' for the executable directional adversary."
         )
-    if mode not in {"random", "fixed", "ippo_rnn", "lose_money"}:
+    if mode not in {"random", "fixed", "ippo_rnn", "lose_money", "directional"}:
         raise ValueError(f"Competitor '{name}' has invalid policy_mode '{mode}'")
     if mode == "fixed":
         if "fixed_action" not in spec:
