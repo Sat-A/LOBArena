@@ -1036,8 +1036,9 @@ def _write_multi_window_csv(window_rows, out_path: Path) -> None:
 def _write_multi_window_plots(summary: dict, out_dir: Path) -> None:
     try:
         import matplotlib.pyplot as plt
+        import seaborn as sns
     except ModuleNotFoundError:
-        print("[LOBArena] matplotlib not installed; skipping multi-window plot generation.")
+        print("[LOBArena] matplotlib/seaborn not installed; skipping multi-window plot generation.")
         return
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1047,36 +1048,50 @@ def _write_multi_window_plots(summary: dict, out_dir: Path) -> None:
     risk_scores = [float(w.get("risk_adjusted_pnl_score", 0.0)) for w in windows]
     x = list(range(len(labels)))
 
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(x, raw_scores, marker="o", label="Raw PnL")
-    ax.plot(x, risk_scores, marker="o", label="Risk-adjusted PnL")
+    sns.set_theme(style="whitegrid", context="talk")
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+    sns.lineplot(x=x, y=raw_scores, marker="o", linewidth=2.5, label="Raw PnL", ax=ax)
+    sns.lineplot(x=x, y=risk_scores, marker="o", linewidth=2.5, label="Risk-adjusted PnL", ax=ax)
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=25, ha="right")
-    ax.set_title("Multi-window scores by window")
+    ax.set_xticklabels(labels, rotation=20, ha="right")
+    ax.set_title("Multi-window scores by window", fontweight="bold")
+    ax.set_xlabel("Window")
     ax.set_ylabel("Score")
-    ax.legend()
+    ax.grid(axis="y", alpha=0.25)
+    ax.legend(loc="best", frameon=False)
     fig.tight_layout()
-    fig.savefig(out_dir / "multi_window_scores_by_window.png", dpi=220)
+    fig.savefig(out_dir / "multi_window_scores_by_window.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(8, 4))
+    fig, ax = plt.subplots(figsize=(10, 5))
     aggr = summary.get("aggregates", {})
     raw_aggr = aggr.get("raw_pnl", {})
     risk_aggr = aggr.get("risk_adjusted_pnl", {})
     stats = ["mean", "median", "iqm"]
     raw_vals = [float(raw_aggr.get(k, 0.0)) for k in stats]
     risk_vals = [float(risk_aggr.get(k, 0.0)) for k in stats]
-    width = 0.36
+    width = 0.35
     xpos = list(range(len(stats)))
-    ax.bar([i - width / 2 for i in xpos], raw_vals, width=width, label="Raw PnL")
-    ax.bar([i + width / 2 for i in xpos], risk_vals, width=width, label="Risk-adjusted PnL")
+
+    raw_bars = ax.bar([i - width / 2 for i in xpos], raw_vals, width=width, label="Raw PnL", alpha=0.9)
+    risk_bars = ax.bar([i + width / 2 for i in xpos], risk_vals, width=width, label="Risk-adjusted PnL", alpha=0.9)
+
+    for bars in (raw_bars, risk_bars):
+        for b in bars:
+            h = b.get_height()
+            ax.annotate(f"{h:.1f}", (b.get_x() + b.get_width() / 2, h),
+                        textcoords="offset points", xytext=(0, 4), ha="center", va="bottom", fontsize=9)
+
     ax.set_xticks(xpos)
     ax.set_xticklabels([s.upper() for s in stats])
-    ax.set_title("Aggregated multi-window scores")
+    ax.set_title("Aggregated multi-window scores", fontweight="bold")
+    ax.set_xlabel("Statistic")
     ax.set_ylabel("Score")
-    ax.legend()
+    ax.grid(axis="y", alpha=0.25)
+    ax.legend(loc="best", frameon=False)
     fig.tight_layout()
-    fig.savefig(out_dir / "multi_window_aggregate_stats.png", dpi=220)
+    fig.savefig(out_dir / "multi_window_aggregate_stats.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 

@@ -313,7 +313,7 @@ def test_run_multi_window_evaluation_parallel_and_scored(test_output_root):
     plot_aggr = root / 'plots' / 'multi_window_aggregate_stats.png'
     assert summary_path.exists()
     assert csv_path.exists()
-    if importlib.util.find_spec("matplotlib") is not None:
+    if importlib.util.find_spec("matplotlib") is not None and importlib.util.find_spec("seaborn") is not None:
         assert plot_scores.exists()
         assert plot_aggr.exists()
 
