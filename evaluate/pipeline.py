@@ -1034,7 +1034,11 @@ def _write_multi_window_csv(window_rows, out_path: Path) -> None:
 
 
 def _write_multi_window_plots(summary: dict, out_dir: Path) -> None:
-    import matplotlib.pyplot as plt
+    try:
+        import matplotlib.pyplot as plt
+    except ModuleNotFoundError:
+        print("[LOBArena] matplotlib not installed; skipping multi-window plot generation.")
+        return
 
     out_dir.mkdir(parents=True, exist_ok=True)
     windows = summary.get("windows", [])

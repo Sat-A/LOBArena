@@ -1,4 +1,5 @@
 import json
+import importlib.util
 import shutil
 import uuid
 from pathlib import Path
@@ -312,8 +313,9 @@ def test_run_multi_window_evaluation_parallel_and_scored(test_output_root):
     plot_aggr = root / 'plots' / 'multi_window_aggregate_stats.png'
     assert summary_path.exists()
     assert csv_path.exists()
-    assert plot_scores.exists()
-    assert plot_aggr.exists()
+    if importlib.util.find_spec("matplotlib") is not None:
+        assert plot_scores.exists()
+        assert plot_aggr.exists()
 
     payload = json.loads(summary_path.read_text())
     assert payload['n_windows'] == 4
