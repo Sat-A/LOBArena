@@ -1064,31 +1064,28 @@ def _write_multi_window_plots(summary: dict, out_dir: Path) -> None:
     fig.savefig(out_dir / "multi_window_scores_by_window.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(8, 4))
     aggr = summary.get("aggregates", {})
     raw_aggr = aggr.get("raw_pnl", {})
     risk_aggr = aggr.get("risk_adjusted_pnl", {})
-    stats = ["mean", "median", "iqm"]
-    raw_vals = [float(raw_aggr.get(k, 0.0)) for k in stats]
-    risk_vals = [float(risk_aggr.get(k, 0.0)) for k in stats]
-    width = 0.35
-    xpos = list(range(len(stats)))
+    stats = ["mean", "median", "IQM"]
+    stat_keys = ["mean", "median", "iqm"]
+    y_positions = list(range(len(stats)))
+    y_labels = ["mean", "median", "IQM"]
 
-    raw_bars = ax.bar([i - width / 2 for i in xpos], raw_vals, width=width, label="Raw PnL", alpha=0.9)
-    risk_bars = ax.bar([i + width / 2 for i in xpos], risk_vals, width=width, label="Risk-adjusted PnL", alpha=0.9)
+    raw_vals = [float(raw_aggr.get(k, 0.0)) for k in stat_keys]
+    risk_vals = [float(risk_aggr.get(k, 0.0)) for k in stat_keys]
 
-    for bars in (raw_bars, risk_bars):
-        for b in bars:
-            h = b.get_height()
-            ax.annotate(f"{h:.1f}", (b.get_x() + b.get_width() / 2, h),
-                        textcoords="offset points", xytext=(0, 4), ha="center", va="bottom", fontsize=9)
-
-    ax.set_xticks(xpos)
-    ax.set_xticklabels([s.upper() for s in stats])
-    ax.set_title("Aggregated multi-window scores", fontweight="bold")
-    ax.set_xlabel("Statistic")
-    ax.set_ylabel("Score")
-    ax.grid(axis="y", alpha=0.25)
+    # Match lob_bench summary-plot orientation: x=score, y={mean, median, IQM}.
+    ax.scatter(raw_vals, y_positions, marker="x", color="C0", label="raw_pnl")
+    ax.scatter(risk_vals, y_positions, marker="x", color="C1", label="risk_adjusted_pnl")
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels(y_labels)
+    ax.set_ylim(-1, 3)
+    ax.set_title("Aggregated multi-window scores", fontweight="bold", loc="left", pad=12)
+    ax.set_xlabel("Score")
+    ax.set_ylabel("")
+    ax.grid(axis="x", alpha=0.25)
     ax.legend(loc="best", frameon=False)
     fig.tight_layout()
     fig.savefig(out_dir / "multi_window_aggregate_stats.png", dpi=300, bbox_inches="tight")
