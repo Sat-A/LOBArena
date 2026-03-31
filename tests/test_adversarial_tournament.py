@@ -6,6 +6,9 @@ from types import SimpleNamespace
 
 from LOBArena.evaluate import adversarial
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+COMPETITOR_REGISTRY = REPO_ROOT / "config" / "evaluation_configs" / "adversarial_competitors.json"
+
 
 def test_build_matchups_target_vs_many_and_round_robin():
     participants = ["target", "competitor:a", "competitor:b"]
@@ -33,8 +36,8 @@ def test_run_eval_passes_fairness_args(monkeypatch):
 
     rc = adversarial._run_eval(
         run_name="run_x",
-        output_root="/home/s5e/satyamaga.s5e/LOBArena/tests/out",
-        data_dir="/home/s5e/satyamaga.s5e/data",
+        output_root=str(REPO_ROOT / "tests" / "out"),
+        data_dir=str(REPO_ROOT),
         policy_mode="fixed",
         fixed_action=1,
         ckpt="",
@@ -164,13 +167,13 @@ def test_compute_regime_date_robustness_is_compact_and_deterministic():
 
 
 def test_main_round_robin_summary_contains_matches_and_aggregate(monkeypatch):
-    test_root = Path("/home/s5e/satyamaga.s5e/LOBArena/tests/.adversarial_test_outputs")
+    test_root = REPO_ROOT / "tests" / ".adversarial_test_outputs"
     run_name = f"rr_{uuid.uuid4().hex[:8]}"
     output_root = test_root / run_name
     output_root.mkdir(parents=True, exist_ok=True)
 
     args = SimpleNamespace(
-        data_dir="/home/s5e/satyamaga.s5e/LOBArena",
+        data_dir=str(REPO_ROOT),
         target_policy_mode="fixed",
         target_fixed_action=1,
         target_policy_ckpt="",
@@ -181,7 +184,7 @@ def test_main_round_robin_summary_contains_matches_and_aggregate(monkeypatch):
         competitor_policy_ckpt="",
         competitor_policy_config="",
         competitor_policy_handoff="",
-        competitor_registry_config="/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/adversarial_competitors.json",
+        competitor_registry_config=str(COMPETITOR_REGISTRY),
         competitor_keys=["random_baseline", "fixed_baseline_hold"],
         output_root=str(output_root),
         run_name="adversarial_rr",
@@ -273,13 +276,13 @@ def test_main_round_robin_summary_contains_matches_and_aggregate(monkeypatch):
 
 
 def test_adversarial_summary_schema_sanity_round_robin(monkeypatch):
-    test_root = Path("/home/s5e/satyamaga.s5e/LOBArena/tests/.adversarial_test_outputs")
+    test_root = REPO_ROOT / "tests" / ".adversarial_test_outputs"
     run_name = f"schema_{uuid.uuid4().hex[:8]}"
     output_root = test_root / run_name
     output_root.mkdir(parents=True, exist_ok=True)
 
     args = SimpleNamespace(
-        data_dir="/home/s5e/satyamaga.s5e/LOBArena",
+        data_dir=str(REPO_ROOT),
         target_policy_mode="fixed",
         target_fixed_action=1,
         target_policy_ckpt="",
@@ -290,7 +293,7 @@ def test_adversarial_summary_schema_sanity_round_robin(monkeypatch):
         competitor_policy_ckpt="",
         competitor_policy_config="",
         competitor_policy_handoff="",
-        competitor_registry_config="/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/adversarial_competitors.json",
+        competitor_registry_config=str(COMPETITOR_REGISTRY),
         competitor_keys=["random_baseline", "fixed_baseline_hold"],
         output_root=str(output_root),
         run_name="adversarial_schema",
@@ -405,13 +408,13 @@ def test_adversarial_summary_schema_sanity_round_robin(monkeypatch):
 
 
 def test_adversarial_winner_is_tie_when_target_equals_competitor(monkeypatch):
-    test_root = Path("/home/s5e/satyamaga.s5e/LOBArena/tests/.adversarial_test_outputs")
+    test_root = REPO_ROOT / "tests" / ".adversarial_test_outputs"
     run_name = f"tie_{uuid.uuid4().hex[:8]}"
     output_root = test_root / run_name
     output_root.mkdir(parents=True, exist_ok=True)
 
     args = SimpleNamespace(
-        data_dir="/home/s5e/satyamaga.s5e/LOBArena",
+        data_dir=str(REPO_ROOT),
         target_policy_mode="fixed",
         target_fixed_action=1,
         target_policy_ckpt="",
@@ -422,7 +425,7 @@ def test_adversarial_winner_is_tie_when_target_equals_competitor(monkeypatch):
         competitor_policy_ckpt="",
         competitor_policy_config="",
         competitor_policy_handoff="",
-        competitor_registry_config="/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/adversarial_competitors.json",
+        competitor_registry_config=str(COMPETITOR_REGISTRY),
         competitor_keys=[],
         output_root=str(output_root),
         run_name="adversarial_tie",

@@ -12,9 +12,12 @@ from LOBArena.evaluate.adversarial import (
 )
 from LOBArena.evaluate.phase2_contract import build_campaign_summary_payload
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+COMPETITOR_REGISTRY = REPO_ROOT / "config" / "evaluation_configs" / "adversarial_competitors.json"
+
 
 def test_adversarial_competitor_registry_exists_and_parseable():
-    p = Path("/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/adversarial_competitors.json")
+    p = COMPETITOR_REGISTRY
     assert p.exists()
     data = json.loads(p.read_text())
     assert "competitors" in data
@@ -26,7 +29,7 @@ def test_adversarial_competitor_registry_exists_and_parseable():
 
 
 def test_load_competitor_registry_returns_mapping():
-    p = Path("/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/adversarial_competitors.json")
+    p = COMPETITOR_REGISTRY
     registry = load_competitor_registry(p)
     assert isinstance(registry, dict)
     assert registry["random_baseline"]["policy_mode"] == "random"
@@ -74,7 +77,7 @@ def test_resolve_competitors_uses_direct_args_when_no_registry_key():
 def test_resolve_competitors_by_registry_key():
     args = SimpleNamespace(
         competitor_keys=["random_baseline", "fixed_baseline_hold"],
-        competitor_registry_config="/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/adversarial_competitors.json",
+        competitor_registry_config=str(COMPETITOR_REGISTRY),
         competitor_policy_mode="random",
         competitor_fixed_action=0,
         competitor_policy_ckpt="",
@@ -90,7 +93,7 @@ def test_resolve_competitors_by_registry_key():
 def test_resolve_competitors_unknown_registry_key_raises():
     args = SimpleNamespace(
         competitor_keys=["does_not_exist"],
-        competitor_registry_config="/home/s5e/satyamaga.s5e/LOBArena/config/evaluation_configs/adversarial_competitors.json",
+        competitor_registry_config=str(COMPETITOR_REGISTRY),
         competitor_policy_mode="random",
         competitor_fixed_action=0,
         competitor_policy_ckpt="",

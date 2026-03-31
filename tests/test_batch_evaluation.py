@@ -11,7 +11,7 @@ from LOBArena.evaluate import pipeline
 
 @pytest.fixture
 def test_output_root():
-    root = Path('/home/s5e/satyamaga.s5e/LOBArena/tests/.batch_eval_outputs') / f"run_{uuid.uuid4().hex[:8]}"
+    root = Path(__file__).resolve().parent / '.batch_eval_outputs' / f"run_{uuid.uuid4().hex[:8]}"
     root.mkdir(parents=True, exist_ok=True)
     try:
         yield root
