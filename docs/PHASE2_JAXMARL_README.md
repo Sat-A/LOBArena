@@ -48,6 +48,25 @@ python LOBArena/scripts/evaluate_checkpoint.py \
   --world_model_step <step>
 ```
 
+
+## LOBArena Benchmark Commands (Phase 1)
+
+Use these when running LOBArena benchmarking with decoupled scoring and plotting:
+
+```bash
+# scoring pass
+python3 LOBArena/scripts/evaluate_checkpoint.py \
+  --world_model historical \
+  --policy_mode random \
+  --data_dir /path/to/test_data \
+  --multi_window \
+  --run_name benchmark_multi_window
+
+# plotting pass
+python3 LOBArena/scripts/plot_multi_window.py \
+  --summary_path LOBArena/outputs/evaluations/benchmark_multi_window/multi_window_summary.json
+```
+
 ---
 
 ## Key Files

@@ -28,6 +28,13 @@ Smoke workflow wrapper:
 python3 scripts/run_phase1_smoke.py --data_dir /path/to/test_data
 ```
 
+
+Multi-window plotting (separate from scoring):
+
+```bash
+python3 scripts/plot_multi_window.py --summary_path outputs/evaluations/<run_name>/multi_window_summary.json
+```
+
 Phase 2 workflow scripts:
 
 ```bash

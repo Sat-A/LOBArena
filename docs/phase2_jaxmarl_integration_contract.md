@@ -6,6 +6,27 @@
 
 ---
 
+
+## 0. LOBArena Benchmark Invocation (Phase 1)
+
+Although this contract focuses on Phase 2 integration, common LOBArena benchmark commands are:
+
+```bash
+# run benchmark scoring
+python3 /home/s5e/satyamaga.s5e/LOBArena/scripts/evaluate_checkpoint.py \
+  --world_model historical \
+  --policy_mode random \
+  --data_dir /path/to/test_data \
+  --multi_window \
+  --run_name benchmark_multi_window
+
+# generate benchmark plots from summary
+python3 /home/s5e/satyamaga.s5e/LOBArena/scripts/plot_multi_window.py \
+  --summary_path /home/s5e/satyamaga.s5e/LOBArena/outputs/evaluations/benchmark_multi_window/multi_window_summary.json
+```
+
+---
+
 ## 1. TRAINING ENTRYPOINTS & COMMANDS
 
 ### 1.1 Primary Training Script

@@ -19,6 +19,24 @@ pip install -r requirements.txt
 
 ## Most important commands
 
+### 0) Full benchmarking workflow (score first, plot second)
+
+```bash
+# 1) Run multi-window benchmark scoring (no plots generated in this step)
+python3 scripts/evaluate_checkpoint.py \
+  --world_model historical \
+  --policy_mode random \
+  --data_dir /path/to/test_data \
+  --multi_window \
+  --multi_window_workers 2 \
+  --risk_weights pnl=1.0,drawdown=0.5,risk=0.1,inventory=0.0 \
+  --run_name benchmark_multi_window
+
+# 2) Generate benchmark plots from the produced summary
+python3 scripts/plot_multi_window.py \
+  --summary_path outputs/evaluations/benchmark_multi_window/multi_window_summary.json
+```
+
 ### 1) Evaluate your own trained checkpoint (IPPO-RNN)
 
 Use this when you want policy actions to come from your trained model weights.

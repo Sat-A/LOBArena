@@ -57,6 +57,7 @@
 
 ## 8) Documentation polish
 
+- Keep benchmark commands explicit and decoupled: run scoring first, then `scripts/plot_multi_window.py` for visuals.
 - Keep `.github/copilot-instructions.md` and `README.md` synced with CLI changes.
 - Add examples for common run recipes:
   - historical random baseline
